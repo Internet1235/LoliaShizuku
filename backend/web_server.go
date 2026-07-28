@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Mxmilu666/LoliaShizuku/backend/httpclient"
 	"github.com/Mxmilu666/LoliaShizuku/backend/models"
 	"github.com/Mxmilu666/LoliaShizuku/backend/services"
 	"github.com/Mxmilu666/LoliaShizuku/backend/version"
@@ -325,7 +326,18 @@ func (s *WebServer) writeJSON(w http.ResponseWriter, status int, value any) {
 }
 
 func (s *WebServer) writeError(w http.ResponseWriter, err error) {
-	s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+	status := http.StatusBadRequest
+	message := err.Error()
+	var apiErr *httpclient.APIError
+	if errors.As(err, &apiErr) {
+		if apiErr.StatusCode >= 400 && apiErr.StatusCode <= 599 {
+			status = apiErr.StatusCode
+		}
+		if strings.TrimSpace(apiErr.Message) != "" {
+			message = apiErr.Message
+		}
+	}
+	s.writeJSON(w, status, map[string]string{"error": message})
 }
 
 func methodNotAllowed(w http.ResponseWriter) {
