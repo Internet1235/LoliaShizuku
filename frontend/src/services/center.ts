@@ -1,3 +1,5 @@
+import { apiRequest } from "./http";
+
 type CenterServiceBinding = {
   GetDashboard: () => Promise<any>;
   GetRunnerRuntimeStatus: () => Promise<any>;
@@ -9,12 +11,9 @@ type CenterServiceBinding = {
   GetTrafficDaily: (days: number) => Promise<any>;
 };
 
-function getCenterServiceBinding(): CenterServiceBinding {
+function getCenterServiceBinding(): CenterServiceBinding | null {
   const svc = (window as any).go?.services?.CenterService;
-  if (!svc) {
-    throw new Error("CenterService 未绑定，请重启应用。");
-  }
-  return svc as CenterServiceBinding;
+  return svc ? svc as CenterServiceBinding : null;
 }
 
 function parseError(error: unknown): Error {
@@ -154,7 +153,9 @@ export interface RunnerRuntimeStatus {
 export async function getDashboard(): Promise<DashboardData> {
   try {
     const svc = getCenterServiceBinding();
-    return (await svc.GetDashboard()) as DashboardData;
+    return svc
+      ? (await svc.GetDashboard()) as DashboardData
+      : await apiRequest<DashboardData>("/api/center/dashboard");
   } catch (error) {
     throw parseError(error);
   }
@@ -167,7 +168,9 @@ export async function getTunnelsOverview(
 ): Promise<TunnelsOverviewData> {
   try {
     const svc = getCenterServiceBinding();
-    return (await svc.GetTunnelsOverview(page, limit, days)) as TunnelsOverviewData;
+    return svc
+      ? (await svc.GetTunnelsOverview(page, limit, days)) as TunnelsOverviewData
+      : await apiRequest<TunnelsOverviewData>(`/api/center/tunnels?page=${page}&limit=${limit}&days=${days}`);
   } catch (error) {
     throw parseError(error);
   }
@@ -176,7 +179,9 @@ export async function getTunnelsOverview(
 export async function getRunnerData(tunnelID = 0): Promise<RunnerData> {
   try {
     const svc = getCenterServiceBinding();
-    return (await svc.GetRunnerData(tunnelID)) as RunnerData;
+    return svc
+      ? (await svc.GetRunnerData(tunnelID)) as RunnerData
+      : await apiRequest<RunnerData>(`/api/center/runner/data?tunnel_id=${tunnelID}`);
   } catch (error) {
     throw parseError(error);
   }
@@ -185,7 +190,9 @@ export async function getRunnerData(tunnelID = 0): Promise<RunnerData> {
 export async function getTunnelDetail(tunnelName: string): Promise<TunnelDetailData> {
   try {
     const svc = getCenterServiceBinding();
-    return (await svc.GetTunnelDetail(tunnelName)) as TunnelDetailData;
+    return svc
+      ? (await svc.GetTunnelDetail(tunnelName)) as TunnelDetailData
+      : await apiRequest<TunnelDetailData>(`/api/center/tunnel/detail?name=${encodeURIComponent(tunnelName)}`);
   } catch (error) {
     throw parseError(error);
   }
@@ -194,7 +201,9 @@ export async function getTunnelDetail(tunnelName: string): Promise<TunnelDetailD
 export async function getRunnerRuntimeStatus(): Promise<RunnerRuntimeStatus> {
   try {
     const svc = getCenterServiceBinding();
-    return (await svc.GetRunnerRuntimeStatus()) as RunnerRuntimeStatus;
+    return svc
+      ? (await svc.GetRunnerRuntimeStatus()) as RunnerRuntimeStatus
+      : await apiRequest<RunnerRuntimeStatus>("/api/center/runner/status");
   } catch (error) {
     throw parseError(error);
   }
@@ -210,7 +219,12 @@ export async function startRunner(
       : tunnelNames.trim()
         ? [tunnelNames]
         : [];
-    return (await svc.StartRunner(normalizedTunnelNames)) as RunnerRuntimeStatus;
+    return svc
+      ? (await svc.StartRunner(normalizedTunnelNames)) as RunnerRuntimeStatus
+      : await apiRequest<RunnerRuntimeStatus>("/api/center/runner/start", {
+          method: "POST",
+          body: JSON.stringify({ tunnel_names: normalizedTunnelNames }),
+        });
   } catch (error) {
     throw parseError(error);
   }
@@ -219,7 +233,9 @@ export async function startRunner(
 export async function stopRunner(): Promise<RunnerRuntimeStatus> {
   try {
     const svc = getCenterServiceBinding();
-    return (await svc.StopRunner()) as RunnerRuntimeStatus;
+    return svc
+      ? (await svc.StopRunner()) as RunnerRuntimeStatus
+      : await apiRequest<RunnerRuntimeStatus>("/api/center/runner/stop", { method: "POST" });
   } catch (error) {
     throw parseError(error);
   }
@@ -228,7 +244,9 @@ export async function stopRunner(): Promise<RunnerRuntimeStatus> {
 export async function getTrafficDaily(days = 7): Promise<DailyTrafficResponse> {
   try {
     const svc = getCenterServiceBinding();
-    return (await svc.GetTrafficDaily(days)) as DailyTrafficResponse;
+    return svc
+      ? (await svc.GetTrafficDaily(days)) as DailyTrafficResponse
+      : await apiRequest<DailyTrafficResponse>(`/api/center/traffic/daily?days=${days}`);
   } catch (error) {
     throw parseError(error);
   }

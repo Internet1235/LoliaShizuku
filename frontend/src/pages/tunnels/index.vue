@@ -8,8 +8,8 @@ import {
   type RunnerRuntimeStatus,
   type TunnelOverviewItem,
 } from "@/services/center";
-import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime";
 import { useGlobalLoadingStore } from "@/stores/globalLoading";
+import { openExternalURL } from "@/services/platform";
 
 defineOptions({
   name: "TunnelsPage",
@@ -135,7 +135,7 @@ const openTunnelDetail = (name: string) => {
   if (!tunnelName) {
     return;
   }
-  BrowserOpenURL(
+  openExternalURL(
     `https://dash.lolia.link/dash/tunnel/${encodeURIComponent(tunnelName)}`,
   );
 };

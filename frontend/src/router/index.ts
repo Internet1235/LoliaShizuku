@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { hasOAuthToken } from '@/services/auth'
 
 const routes = [
   {
@@ -33,21 +34,13 @@ const router = createRouter({
   routes
 })
 
-const hasOAuthToken = async () => {
-  const tokenService = (window as any).go?.services?.TokenService
-  if (!tokenService?.HasOAuthToken) {
-    return false
-  }
-
-  try {
-    return await tokenService.HasOAuthToken()
-  } catch {
-    return false
-  }
-}
-
 router.beforeEach(async (to) => {
-  const ok = await hasOAuthToken()
+  let ok = false
+  try {
+    ok = await hasOAuthToken()
+  } catch {
+    ok = false
+  }
 
   if (to.path === '/oauth') {
     if (ok) {

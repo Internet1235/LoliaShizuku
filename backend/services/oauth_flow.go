@@ -66,6 +66,10 @@ func resolveOAuthConfig() (*oauth2.Config, error) {
 	}, nil
 }
 
+func ResolveWebOAuthConfig() (*oauth2.Config, error) {
+	return resolveOAuthConfig()
+}
+
 func randomURLSafeString(size int) (string, error) {
 	buf := make([]byte, size)
 	if _, err := rand.Read(buf); err != nil {

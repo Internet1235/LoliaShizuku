@@ -1,3 +1,5 @@
+import { apiRequest } from "./http";
+
 type FrpcServiceBinding = {
   GetFrpcStatus: () => Promise<any>;
   GetGitHubMirrorURL: () => Promise<string>;
@@ -8,12 +10,9 @@ type FrpcServiceBinding = {
   SetMirrorConfig: (config: FrpcMirrorConfig) => Promise<void>;
 };
 
-function getFrpcServiceBinding(): FrpcServiceBinding {
+function getFrpcServiceBinding(): FrpcServiceBinding | null {
   const svc = (window as any).go?.services?.FrpcService;
-  if (!svc) {
-    throw new Error("FrpcService 未绑定，请重启应用。");
-  }
-  return svc as FrpcServiceBinding;
+  return svc ? svc as FrpcServiceBinding : null;
 }
 
 function parseError(error: unknown): Error {
@@ -106,7 +105,9 @@ export interface FrpcInstallResult {
 export async function getFrpcStatus(): Promise<FrpcStatus> {
   try {
     const svc = getFrpcServiceBinding();
-    return (await svc.GetFrpcStatus()) as FrpcStatus;
+    return svc
+      ? (await svc.GetFrpcStatus()) as FrpcStatus
+      : await apiRequest<FrpcStatus>("/api/frpc/status");
   } catch (error) {
     throw parseError(error);
   }
@@ -115,7 +116,11 @@ export async function getFrpcStatus(): Promise<FrpcStatus> {
 export async function getGitHubMirrorURL(): Promise<string> {
   try {
     const svc = getFrpcServiceBinding();
-    return (await svc.GetGitHubMirrorURL()) as string;
+    if (svc) {
+      return (await svc.GetGitHubMirrorURL()) as string;
+    }
+    const config = await apiRequest<FrpcMirrorConfig>("/api/frpc/mirror");
+    return config.custom_base_url ?? "";
   } catch (error) {
     throw parseError(error);
   }
@@ -124,7 +129,9 @@ export async function getGitHubMirrorURL(): Promise<string> {
 export async function installOrUpdateFrpc(): Promise<FrpcInstallResult> {
   try {
     const svc = getFrpcServiceBinding();
-    return (await svc.InstallOrUpdateFrpc()) as FrpcInstallResult;
+    return svc
+      ? (await svc.InstallOrUpdateFrpc()) as FrpcInstallResult
+      : await apiRequest<FrpcInstallResult>("/api/frpc/install", { method: "POST" });
   } catch (error) {
     throw parseError(error);
   }
@@ -133,7 +140,11 @@ export async function installOrUpdateFrpc(): Promise<FrpcInstallResult> {
 export async function cancelInstallOrUpdateFrpc(): Promise<void> {
   try {
     const svc = getFrpcServiceBinding();
-    await svc.CancelInstallOrUpdateFrpc();
+    if (svc) {
+      await svc.CancelInstallOrUpdateFrpc();
+    } else {
+      await apiRequest("/api/frpc/cancel", { method: "POST" });
+    }
   } catch (error) {
     throw parseError(error);
   }
@@ -142,7 +153,11 @@ export async function cancelInstallOrUpdateFrpc(): Promise<void> {
 export async function removeFrpc(): Promise<void> {
   try {
     const svc = getFrpcServiceBinding();
-    await svc.RemoveFrpc();
+    if (svc) {
+      await svc.RemoveFrpc();
+    } else {
+      await apiRequest("/api/frpc/remove", { method: "POST" });
+    }
   } catch (error) {
     throw parseError(error);
   }
@@ -151,7 +166,14 @@ export async function removeFrpc(): Promise<void> {
 export async function setGitHubMirrorURL(url: string): Promise<void> {
   try {
     const svc = getFrpcServiceBinding();
-    await svc.SetGitHubMirrorURL(url);
+    if (svc) {
+      await svc.SetGitHubMirrorURL(url);
+    } else {
+      await apiRequest("/api/frpc/mirror", {
+        method: "PUT",
+        body: JSON.stringify(url ? { mode: "custom", custom_base_url: url } : { mode: "official" }),
+      });
+    }
   } catch (error) {
     throw parseError(error);
   }
@@ -160,7 +182,14 @@ export async function setGitHubMirrorURL(url: string): Promise<void> {
 export async function setMirrorConfig(config: FrpcMirrorConfig): Promise<void> {
   try {
     const svc = getFrpcServiceBinding();
-    await svc.SetMirrorConfig(config);
+    if (svc) {
+      await svc.SetMirrorConfig(config);
+    } else {
+      await apiRequest("/api/frpc/mirror", {
+        method: "PUT",
+        body: JSON.stringify(config),
+      });
+    }
   } catch (error) {
     throw parseError(error);
   }

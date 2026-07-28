@@ -3,9 +3,6 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useTheme } from "vuetify";
 import { storeToRefs } from "pinia";
-import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime";
-import { GetVersionInfo } from "../../../wailsjs/go/backend/App";
-import type { version } from "../../../wailsjs/go/models";
 import AppLogo from "@/components/AppLogo.vue";
 import {
   accentPresets,
@@ -22,6 +19,12 @@ import {
   type FrpcMirrorConfig,
   type FrpcStatus,
 } from "@/services/frpc";
+import { clearOAuthToken } from "@/services/auth";
+import { apiRequest } from "@/services/http";
+import { isWails, openExternalURL } from "@/services/platform";
+import { stopRunner } from "@/services/center";
+import { GetVersionInfo } from "../../../wailsjs/go/backend/App";
+import type { version } from "../../../wailsjs/go/models";
 
 defineOptions({
   name: "SettingsPage",
@@ -258,7 +261,7 @@ const formatTime = (value?: string) => {
 };
 
 const openURL = (url: string) => {
-  BrowserOpenURL(url);
+  openExternalURL(url);
 };
 
 const copyPath = async (value?: string) => {
@@ -277,7 +280,9 @@ const versionInfo = ref<version.Info | null>(null);
 
 const loadVersionInfo = async () => {
   try {
-    versionInfo.value = await GetVersionInfo();
+    versionInfo.value = isWails()
+      ? await GetVersionInfo()
+      : await apiRequest<version.Info>("/api/version");
   } catch {
     versionInfo.value = null;
   }
@@ -536,17 +541,8 @@ const handleLogout = async () => {
 
   logoutLoading.value = true;
   try {
-    const centerService = (window as any).go?.services?.CenterService;
-    if (centerService?.StopRunner) {
-      await centerService.StopRunner();
-    }
-
-    const tokenService = (window as any).go?.services?.TokenService;
-    if (!tokenService?.ClearOAuthToken) {
-      throw new Error("后端 Token 服务未就绪，请重启应用。");
-    }
-
-    await tokenService.ClearOAuthToken();
+    await stopRunner();
+    await clearOAuthToken();
     showMessage("已退出登录", "success");
     await router.replace("/oauth");
   } catch (error) {

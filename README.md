@@ -47,6 +47,38 @@ bun install
 bun run dev
 ```
 
+## Web 模式
+
+Web 模式会在 Linux 设备上运行 Go 服务，并通过浏览器操作该设备上的 frpc。它是单用户自托管模式，OAuth Token 只保存在服务进程内，服务重启后需要重新登录。
+
+先构建前端，再以 `web` 标签启动 Go 服务：
+
+```bash
+cd frontend
+bun install
+bun run build
+cd ..
+
+LOLIA_WEB_ADDR=:8080 \
+LOLIA_WEB_PUBLIC_URL=http://192.168.1.10:8080 \
+go run -tags web .
+```
+
+然后访问 `http://192.168.1.10:8080`。`LOLIA_WEB_PUBLIC_URL` 必须是浏览器实际访问的公开地址，用于生成 OAuth 回调 URL。
+
+也可以使用 Docker：
+
+```bash
+docker build -t loliashizuku-web .
+docker run --rm \
+	-p 8080:8080 \
+	-e LOLIA_WEB_PUBLIC_URL=http://192.168.1.10:8080 \
+	-v loliashizuku-data:/root/.config/LoliaShizuku \
+	loliashizuku-web
+```
+
+公网部署应通过 Caddy、Nginx 等反向代理提供 HTTPS，并把 `LOLIA_WEB_PUBLIC_URL` 设为完整公网地址，例如 `https://lolia.example.com`。同时需要确保 OAuth 服务允许回调到 `https://lolia.example.com/api/auth/callback`。不要将未配置 HTTPS 和访问控制的实例直接暴露到公网。
+
 ## 构建
 
 在仓库根目录运行：
@@ -66,6 +98,8 @@ Token 存储在系统 Keyring（service: `LoliaShizuku`, key: `oauth_token`）
 
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
+| `LOLIA_WEB_ADDR` | Web 服务监听地址 | `:8080` |
+| `LOLIA_WEB_PUBLIC_URL` | 浏览器访问的公开根地址，用于 Web OAuth 回调 | 根据请求推断 |
 | `LOLIA_CENTER_API_BASE_URL` | 中心 API 基地址 | `https://api.lolia.link/api/v1` |
 | `LOLIA_HTTP_USER_AGENT` | 自定义请求 UA | — |
 | `LOLIA_OAUTH_CLIENT_ID` | OAuth Client ID | — |

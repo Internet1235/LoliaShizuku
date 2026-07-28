@@ -31,7 +31,8 @@ const (
 var runnerTokenArgPattern = regexp.MustCompile(`^[0-9]+:[A-Za-z0-9._~+/=-]+$`)
 
 type CenterService struct {
-	api *api.CenterAPI
+	api           *api.CenterAPI
+	tokenProvider func(context.Context) (string, error)
 
 	runnerMu          sync.Mutex
 	runnerCmd         *exec.Cmd
@@ -47,7 +48,24 @@ type CenterService struct {
 }
 
 func NewCenterService() *CenterService {
-	service := &CenterService{}
+	return newCenterService(nil)
+}
+
+func NewCenterServiceWithTokenProvider(provider func(context.Context) (string, error)) *CenterService {
+	return newCenterService(provider)
+}
+
+func newCenterService(provider func(context.Context) (string, error)) *CenterService {
+	service := &CenterService{tokenProvider: provider}
+	onUnauthorized := func(ctx context.Context) error {
+		return ClearOAuthToken()
+	}
+	if provider != nil {
+		onUnauthorized = func(ctx context.Context) error {
+			ClearWebOAuthToken()
+			return nil
+		}
+	}
 
 	client := httpclient.New(httpclient.Options{
 		BaseURL:    centerAPIBaseURL(),
@@ -55,9 +73,7 @@ func NewCenterService() *CenterService {
 		GetAccessToken: func(ctx context.Context) (string, error) {
 			return service.getValidAccessToken(ctx)
 		},
-		OnUnauthorized: func(ctx context.Context) error {
-			return ClearOAuthToken()
-		},
+		OnUnauthorized: onUnauthorized,
 	})
 
 	service.api = api.NewCenterAPI(client)
@@ -73,6 +89,10 @@ func centerAPIBaseURL() string {
 }
 
 func (s *CenterService) getValidAccessToken(ctx context.Context) (string, error) {
+	if s.tokenProvider != nil {
+		return s.tokenProvider(ctx)
+	}
+
 	refreshCtx, cancel := context.WithTimeout(ctx, defaultHTTPTimeout)
 	defer cancel()
 

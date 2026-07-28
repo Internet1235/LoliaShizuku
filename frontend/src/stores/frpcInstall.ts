@@ -5,6 +5,7 @@ import {
   installOrUpdateFrpc,
   type FrpcInstallResult,
 } from "@/services/frpc";
+import { isWails } from "@/services/platform";
 
 const PROGRESS_EVENT = "frpc_install_progress";
 
@@ -60,21 +61,25 @@ export const useFrpcInstallStore = defineStore("frpcInstall", {
       this.resetProgress();
       this.phase = "resolving";
 
-      EventsOn(PROGRESS_EVENT, (payload: ProgressPayload) => {
-        if (!payload) {
-          return;
-        }
-        this.phase = payload.phase ?? this.phase;
-        this.downloaded = payload.downloaded ?? 0;
-        this.total = payload.total ?? 0;
-        this.percent = payload.percent ?? 0;
-      });
+      if (isWails()) {
+        EventsOn(PROGRESS_EVENT, (payload: ProgressPayload) => {
+          if (!payload) {
+            return;
+          }
+          this.phase = payload.phase ?? this.phase;
+          this.downloaded = payload.downloaded ?? 0;
+          this.total = payload.total ?? 0;
+          this.percent = payload.percent ?? 0;
+        });
+      }
 
       this.runningPromise = (async () => {
         try {
           return await installOrUpdateFrpc();
         } finally {
-          EventsOff(PROGRESS_EVENT);
+          if (isWails()) {
+            EventsOff(PROGRESS_EVENT);
+          }
           this.installing = false;
           this.canceling = false;
           this.runningPromise = null;

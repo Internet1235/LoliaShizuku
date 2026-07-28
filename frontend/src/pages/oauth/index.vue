@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useRouter } from "vue-router";
+import { beginOAuthLogin } from "@/services/auth";
+import { isWails } from "@/services/platform";
 
 defineOptions({
   name: "OAuthPage",
@@ -39,19 +41,16 @@ async function handleLogin() {
 
   isLoading.value = true;
   try {
-    const tokenService = (window as any).go?.services?.TokenService;
-    if (!tokenService?.BeginOAuthLogin) {
-      throw new Error("后端 OAuth 服务未就绪，请重启应用。");
-    }
-
-    const ok = await tokenService.BeginOAuthLogin();
+    const ok = await beginOAuthLogin();
 
     if (!ok) {
       throw new Error("OAuth 授权失败，请重试。");
     }
 
-    successMessage.value = "登录成功，正在跳转...";
-    await router.replace("/");
+    if (isWails()) {
+      successMessage.value = "登录成功，正在跳转...";
+      await router.replace("/");
+    }
   } catch (error) {
     errorMessage.value = parseError(error);
   } finally {

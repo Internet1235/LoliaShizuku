@@ -10,6 +10,7 @@ import {
   Quit,
 } from "../../wailsjs/runtime/runtime";
 import AppLogo from "./AppLogo.vue";
+import { isWails } from "@/services/platform";
 
 const route = useRoute();
 const maximised = ref(false);
@@ -22,6 +23,9 @@ const onToggleMaximize = (isMaximised: boolean) => {
 };
 
 onMounted(async () => {
+  if (!isWails()) {
+    return;
+  }
   const isMax = await WindowIsMaximised();
   onToggleMaximize(isMax);
 
@@ -37,7 +41,9 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
-  EventsOff("window_changed");
+  if (isWails()) {
+    EventsOff("window_changed");
+  }
 });
 
 async function handleMinimize() {
@@ -94,7 +100,7 @@ function handleClose() {
 
     <v-spacer />
 
-    <template #append>
+    <template v-if="isWails()" #append>
       <!-- 窗口控制按钮 -->
       <v-btn
         icon="fas fa-minus"
