@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
+import { Banner, Button, Card, Empty, Input, Tag } from "@kousum/semi-ui-vue";
+import {
+  IconArrowDown,
+  IconArrowUp,
+  IconExternalOpen,
+  IconPlay,
+  IconRefresh,
+  IconSearch,
+  IconServer,
+} from "@kousum/semi-icons-vue";
 import {
   getRunnerRuntimeStatus,
   getTunnelsOverview,
@@ -93,12 +103,12 @@ const formatBytes = (value: number) => {
 const getStatusColor = (status: string) => {
   const normalized = status.toLowerCase();
   if (normalized === "active") {
-    return "success";
+    return "green";
   }
   if (normalized === "inactive") {
     return "grey";
   }
-  return "info";
+  return "blue";
 };
 
 const getStatusText = (status: string) => {
@@ -168,168 +178,120 @@ onMounted(() => {
 </script>
 
 <template>
-  <div>
-    <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-3">
-      {{ errorMessage }}
-    </v-alert>
+  <div class="tunnels-page">
+    <Banner v-if="errorMessage" type="danger" :description="errorMessage" />
 
-    <v-card elevation="2" class="mb-4">
-      <v-card-text class="d-flex align-center flex-wrap ga-4">
-        <v-text-field
-          v-model="searchQuery"
-          label="搜索隧道"
-          prepend-inner-icon="fas fa-search"
-          hide-details="auto"
-          clearable
-          class="flex-grow-1"
-        />
-
-        <v-btn color="primary" variant="tonal" @click="loadTunnels">
-          <v-icon start>fas fa-rotate</v-icon>
+    <Card class="toolbar-card" :bordered="true">
+      <div class="tunnel-toolbar">
+        <Input
+          :value="searchQuery"
+          placeholder="搜索名称、节点、地址或端口"
+          show-clear
+          size="large"
+          @change="(value) => searchQuery = String(value)"
+        >
+          <template #prefix><IconSearch style="font-size: 17px" /></template>
+        </Input>
+        <Button theme="light" type="primary" size="large" @click="loadTunnels">
+          <IconRefresh style="font-size: 17px" />
           刷新
-        </v-btn>
-      </v-card-text>
-    </v-card>
+        </Button>
+      </div>
+    </Card>
 
-    <v-row dense>
-      <v-col
+    <div v-if="filteredTunnels.length" class="tunnel-grid">
+      <Card
         v-for="tunnel in filteredTunnels"
         :key="tunnel.id"
-        cols="12"
-        sm="6"
-        md="4"
+        class="tunnel-card"
+        :bordered="true"
+        :body-style="{ padding: '0' }"
       >
-        <v-card elevation="2" class="tunnel-card h-100 d-flex flex-column">
-          <v-card-item class="pb-2">
-            <div class="d-flex align-center justify-space-between ga-2">
-              <div class="min-w-0">
-                <div class="text-subtitle-1 font-weight-bold text-truncate">
-                  {{ tunnel.remark }}
-                </div>
-              </div>
-              <v-chip
-                :color="getStatusColor(tunnel.status)"
-                class="rounded-pill flex-shrink-0"
-                size="small"
-                variant="tonal"
-              >
-                <v-icon start size="10">fas fa-circle</v-icon>
-                {{ getStatusText(tunnel.status) }}
-              </v-chip>
-            </div>
-          </v-card-item>
-
-          <v-card-text class="d-flex flex-column ga-3 pt-0">
-            <div class="d-flex flex-column ga-1">
-              <div class="d-flex align-center ga-2">
-                <span class="tunnel-label text-caption text-medium-emphasis">本地</span>
-                <code class="tunnel-addr">{{ tunnel.local_ip }}:{{ tunnel.local_port }}</code>
-              </div>
-              <div class="d-flex align-center ga-2">
-                <span class="tunnel-label text-caption text-medium-emphasis">目标</span>
-                <code class="tunnel-addr" :title="getTunnelTarget(tunnel)">
-                  {{ getTunnelTarget(tunnel) }}
-                </code>
-              </div>
-            </div>
-
-            <div class="d-flex flex-wrap ga-2">
-              <v-chip size="x-small" variant="tonal" color="primary" class="rounded-pill">
-                <v-icon start size="10">fas fa-network-wired</v-icon>
-                {{ tunnel.type.toUpperCase() }}
-              </v-chip>
-              <v-chip size="x-small" variant="tonal" class="rounded-pill">
-                <v-icon start size="10">fas fa-server</v-icon>
-                {{ tunnel.node_name }}
-              </v-chip>
-            </div>
-
-            <div class="d-flex align-center ga-4 text-caption">
-              <span class="d-flex align-center ga-1">
-                <v-icon size="12" color="success">fas fa-arrow-down</v-icon>
-                {{ formatBytes(Number(tunnel.total_in ?? 0)) }}
-              </span>
-              <span class="d-flex align-center ga-1">
-                <v-icon size="12" color="info">fas fa-arrow-up</v-icon>
-                {{ formatBytes(Number(tunnel.total_out ?? 0)) }}
-              </span>
-            </div>
-          </v-card-text>
-
-          <v-divider />
-
-          <v-card-actions>
-            <v-btn
-              color="success"
-              variant="tonal"
-              size="small"
-              prepend-icon="fas fa-play"
-              :loading="startingTunnelName === tunnel.name"
-              :disabled="
-                !!startingTunnelName || isStartedTunnel(tunnel.name)
-              "
-              @click="handleStartTunnel(tunnel.name)"
-            >
-              {{ isStartedTunnel(tunnel.name) ? "已启动" : "启动" }}
-            </v-btn>
-            <v-spacer />
-            <v-btn
-              color="secondary"
-              variant="tonal"
-              size="small"
-              prepend-icon="fas fa-eye"
-              @click="openTunnelDetail(tunnel.name)"
-            >
-              详情
-            </v-btn>
-          </v-card-actions>
-        </v-card>
-      </v-col>
-
-      <v-col v-if="filteredTunnels.length === 0" cols="12">
-        <v-card elevation="0" class="text-center py-16">
-          <v-icon size="64" color="grey-lighten-1" class="mb-4">
-            fas fa-folder-open
-          </v-icon>
-          <div class="text-h6 font-weight-bold text-medium-emphasis mb-2">
-            暂无可展示的隧道
+        <div class="tunnel-card-body">
+          <div class="tunnel-title-row">
+            <h2 :title="tunnel.remark">{{ tunnel.remark }}</h2>
+            <Tag :color="getStatusColor(tunnel.status)" type="light" size="small">
+              {{ getStatusText(tunnel.status) }}
+            </Tag>
           </div>
-          <div class="text-body-2 text-medium-emphasis mb-4">
-            你可以尝试刷新或调整搜索条件
+
+          <div class="tunnel-addresses">
+            <div>
+              <span>本地</span>
+              <code>{{ tunnel.local_ip }}:{{ tunnel.local_port }}</code>
+            </div>
+            <div>
+              <span>目标</span>
+              <code :title="getTunnelTarget(tunnel)">{{ getTunnelTarget(tunnel) }}</code>
+            </div>
           </div>
-          <v-btn
-            color="primary"
-            variant="tonal"
-            prepend-inner-icon="fas fa-rotate"
-            @click="loadTunnels"
+
+          <div class="tunnel-tags">
+            <Tag color="blue" type="light" size="small">{{ tunnel.type.toUpperCase() }}</Tag>
+            <Tag color="grey" type="light" size="small"><IconServer style="font-size: 12px" /> {{ tunnel.node_name }}</Tag>
+          </div>
+
+          <div class="traffic-meta">
+            <span><IconArrowDown style="font-size: 13px" />{{ formatBytes(Number(tunnel.total_in ?? 0)) }}</span>
+            <span><IconArrowUp style="font-size: 13px" />{{ formatBytes(Number(tunnel.total_out ?? 0)) }}</span>
+          </div>
+        </div>
+
+        <div class="tunnel-actions">
+          <Button
+            theme="light"
+            type="primary"
+            size="small"
+            :loading="startingTunnelName === tunnel.name"
+            :disabled="!!startingTunnelName || isStartedTunnel(tunnel.name)"
+            @click="handleStartTunnel(tunnel.name)"
           >
-            重新加载
-          </v-btn>
-        </v-card>
-      </v-col>
-    </v-row>
+            <IconPlay style="font-size: 14px" />
+            {{ isStartedTunnel(tunnel.name) ? "已启动" : "启动" }}
+          </Button>
+          <Button theme="borderless" type="tertiary" size="small" @click="openTunnelDetail(tunnel.name)">
+            <IconExternalOpen style="font-size: 14px" />详情
+          </Button>
+        </div>
+      </Card>
+    </div>
+
+    <Card v-else class="empty-card" :bordered="true">
+      <Empty title="暂无可展示的隧道" description="请刷新列表或调整搜索条件">
+        <template #footer>
+          <Button theme="light" type="primary" @click="loadTunnels">
+            <IconRefresh style="font-size: 16px" />重新加载
+          </Button>
+        </template>
+      </Empty>
+    </Card>
   </div>
 </template>
 
 <style scoped>
-.min-w-0 {
-  min-width: 0;
-}
-
-.tunnel-label {
-  width: 32px;
-  flex-shrink: 0;
-}
-
-.tunnel-addr {
-  min-width: 0;
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-    "Courier New", monospace;
-  font-size: 0.78rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: rgb(var(--v-theme-on-surface));
+.tunnels-page { display: flex; flex-direction: column; gap: 18px; }
+.toolbar-card, .tunnel-card, .empty-card { background: var(--app-surface); border-color: var(--app-border); }
+.tunnel-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
+.tunnel-toolbar :deep(.semi-button-content), .tunnel-actions :deep(.semi-button-content),
+.tunnel-tags :deep(.semi-tag-content), .traffic-meta span { display: flex; align-items: center; gap: 6px; }
+.tunnel-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.tunnel-card { min-width: 0; }
+.tunnel-card-body { display: flex; flex-direction: column; gap: 16px; padding: 18px; }
+.tunnel-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.tunnel-title-row h2 { overflow: hidden; margin: 0; color: var(--app-text-strong); font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
+.tunnel-addresses { display: flex; flex-direction: column; gap: 8px; }
+.tunnel-addresses div { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 8px; }
+.tunnel-addresses span { color: var(--app-text); font-size: 12px; }
+.tunnel-addresses code { overflow: hidden; color: var(--app-text-strong); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.tunnel-tags, .traffic-meta, .tunnel-actions { display: flex; align-items: center; gap: 8px; }
+.traffic-meta { gap: 18px; color: var(--app-text); font-size: 12px; }
+.traffic-meta span:first-child { color: #168f63; }
+.traffic-meta span:last-child { color: #2764e7; }
+.tunnel-actions { justify-content: space-between; padding: 12px 18px; border-top: 1px solid var(--app-border); }
+.empty-card { padding: 56px 20px; }
+@media (max-width: 980px) { .tunnel-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px) {
+  .tunnel-grid { grid-template-columns: 1fr; }
+  .tunnel-toolbar { grid-template-columns: 1fr; }
 }
 </style>

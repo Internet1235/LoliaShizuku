@@ -11,6 +11,14 @@ import {
 } from "../../wailsjs/runtime/runtime";
 import AppLogo from "./AppLogo.vue";
 import { isWails } from "@/services/platform";
+import { Button, Tooltip } from "@kousum/semi-ui-vue";
+import {
+  IconClose,
+  IconHome,
+  IconMinus,
+  IconSetting,
+  IconServer,
+} from "@kousum/semi-icons-vue";
 
 const route = useRoute();
 const maximised = ref(false);
@@ -60,69 +68,42 @@ function handleClose() {
 </script>
 
 <template>
-  <v-app-bar color="appbar" app>
-    <template #prepend>
-      <div
-        style="display: flex; align-items: center; gap: 8px; margin-left: 17px"
-      >
+  <header class="app-header">
+    <div class="brand">
         <AppLogo :size="20" />
-        <v-app-bar-title class="font-comfortaa text-lg font-semibold">
-          LoliaShizuku
-        </v-app-bar-title>
-      </div>
-    </template>
-
-    <v-spacer />
-
-    <!-- 中间导航按钮 -->
-    <div v-if="!isOAuthPage" class="nav-buttons" style="display: flex; gap: 8px">
-      <v-btn
-        to="/"
-      >
-        <v-icon start>fas fa-home</v-icon>
-        首页
-      </v-btn>
-
-      <v-btn
-        to="/tunnels"
-      >
-        <v-icon start>fas fa-server</v-icon>
-        隧道
-      </v-btn>
-
-      <v-btn
-        to="/settings"
-      >
-        <v-icon start>fas fa-cog</v-icon>
-        设置
-      </v-btn>
+        <strong class="font-comfortaa">LoliaShizuku</strong>
     </div>
 
-    <v-spacer />
+    <nav v-if="!isOAuthPage" class="nav-buttons" aria-label="主导航">
+      <router-link to="/" class="nav-link"><IconHome style="font-size: 16px" />首页</router-link>
+      <router-link to="/tunnels" class="nav-link"><IconServer style="font-size: 16px" />隧道</router-link>
+      <router-link to="/settings" class="nav-link"><IconSetting style="font-size: 16px" />设置</router-link>
+    </nav>
 
-    <template v-if="isWails()" #append>
-      <!-- 窗口控制按钮 -->
-      <v-btn
-        icon="fas fa-minus"
-        variant="text"
-        size="small"
-        @click="handleMinimize"
-      />
-
-      <v-btn
-        :icon="maximised ? 'fas fa-window-restore' : 'fas fa-window-maximize'"
-        variant="text"
-        size="small"
-        @click="handleMaximize"
-      />
-
-      <v-btn
-        icon="fas fa-times"
-        variant="text"
-        size="small"
-        @click="handleClose"
-        class="mr-2"
-      />
-    </template>
-  </v-app-bar>
+    <div v-if="isWails()" class="window-controls">
+      <Tooltip content="最小化"><Button theme="borderless" type="tertiary" icon @click="handleMinimize"><IconMinus /></Button></Tooltip>
+      <Tooltip :content="maximised ? '还原' : '最大化'"><Button theme="borderless" type="tertiary" icon @click="handleMaximize"><span class="maximise-icon" /></Button></Tooltip>
+      <Tooltip content="关闭"><Button class="close-button" theme="borderless" type="tertiary" icon @click="handleClose"><IconClose /></Button></Tooltip>
+    </div>
+  </header>
 </template>
+
+<style scoped>
+.app-header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; height: 58px; padding: 0 12px 0 20px; border-bottom: 1px solid var(--app-border); background: color-mix(in srgb, var(--app-surface) 92%, transparent); backdrop-filter: blur(14px); box-sizing: border-box; }
+.brand { display: flex; align-items: center; gap: 9px; min-width: 0; color: var(--app-text-strong); }
+.brand strong { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+.nav-buttons { display: flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid var(--app-border); border-radius: 7px; background: var(--app-surface-muted); }
+.nav-link { display: flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 13px; border-radius: 5px; color: var(--app-text); font-size: 13px; font-weight: 600; text-decoration: none; transition: background .16s ease, color .16s ease; }
+.nav-link:hover { color: var(--app-text-strong); background: var(--app-surface); }
+.nav-link.router-link-active { color: var(--app-accent); background: var(--app-surface); box-shadow: 0 1px 2px rgba(20, 24, 31, .08); }
+.window-controls { display: flex; justify-self: end; align-items: center; gap: 2px; --wails-draggable: no-drag; }
+.maximise-icon { display: block; width: 12px; height: 12px; border: 1.5px solid currentColor; box-sizing: border-box; }
+.close-button:hover { color: #fff !important; background: #d7373f !important; }
+@media (max-width: 620px) {
+  .app-header { grid-template-columns: auto 1fr auto; padding-left: 12px; }
+  .brand strong { display: none; }
+  .nav-buttons { justify-self: center; }
+  .nav-link { padding: 0 9px; }
+  .nav-link svg { display: none; }
+}
+</style>

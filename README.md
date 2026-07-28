@@ -103,6 +103,7 @@ Token 存储在系统 Keyring（service: `LoliaShizuku`, key: `oauth_token`）
 | `LOLIA_CENTER_API_BASE_URL` | 中心 API 基地址 | `https://api.lolia.link/api/v1` |
 | `LOLIA_HTTP_USER_AGENT` | 自定义请求 UA | — |
 | `LOLIA_OAUTH_CLIENT_ID` | OAuth Client ID | — |
+| `LOLIA_OAUTH_CLIENT_SECRET` | OAuth Client Secret；机密客户端必填，公共 PKCE 客户端留空 | — |
 | `LOLIA_OAUTH_AUTHORIZE_URL` | OAuth 授权地址 | `https://dash.lolia.link/oauth/authorize` |
 | `LOLIA_OAUTH_TOKEN_URL` | OAuth Token 地址 | `https://api.lolia.link/api/v1/oauth2/token` |
 | `LOLIA_OAUTH_REDIRECT_URL` | OAuth 回调地址 | `http://localhost:1145` |

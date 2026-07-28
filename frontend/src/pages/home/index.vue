@@ -9,6 +9,8 @@ import {
   VisTooltip,
 } from "@unovis/vue";
 import { useElementSize } from "@vueuse/core";
+import { Avatar, Banner, Card, Tag } from "@kousum/semi-ui-vue";
+import { IconActivity, IconHistogram, IconServer } from "@kousum/semi-icons-vue";
 import {
   getDashboard,
   getTrafficDaily,
@@ -198,15 +200,15 @@ const loadData = async () => {
 };
 
 const chartVars = {
-  "--vis-crosshair-line-stroke-color": "rgb(var(--v-theme-primary))",
-  "--vis-crosshair-circle-stroke-color": "rgb(var(--v-theme-surface))",
-  "--vis-axis-grid-color": "rgba(var(--v-theme-on-surface), 0.08)",
-  "--vis-axis-tick-color": "rgba(var(--v-theme-on-surface), 0.12)",
-  "--vis-axis-tick-label-color": "rgba(var(--v-theme-on-surface), 0.6)",
-  "--vis-tooltip-background-color": "rgb(var(--v-theme-surface))",
-  "--vis-tooltip-border-color": "rgba(var(--v-theme-on-surface), 0.12)",
-  "--vis-tooltip-text-color": "rgb(var(--v-theme-on-surface))",
-  "--vis-tooltip-border-radius": "10px",
+  "--vis-crosshair-line-stroke-color": "var(--app-accent)",
+  "--vis-crosshair-circle-stroke-color": "var(--app-surface)",
+  "--vis-axis-grid-color": "var(--app-border)",
+  "--vis-axis-tick-color": "var(--app-border)",
+  "--vis-axis-tick-label-color": "var(--app-text)",
+  "--vis-tooltip-background-color": "var(--app-surface)",
+  "--vis-tooltip-border-color": "var(--app-border)",
+  "--vis-tooltip-text-color": "var(--app-text-strong)",
+  "--vis-tooltip-border-radius": "6px",
 } as const;
 
 // 格式化带宽 (MB/s 转换为 Mbps)
@@ -220,123 +222,84 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="d-flex flex-column ga-4">
-    <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-1">
-      {{ errorMessage }}
-    </v-alert>
+  <div class="home-page">
+    <Banner v-if="errorMessage" type="danger" :description="errorMessage" />
 
-    <v-card elevation="2" class="pa-6">
-      <div class="d-flex align-center ga-4">
-        <v-avatar
-          :image="userInfo.avatarUrl"
-          color="primary"
-          size="56"
-          class="flex-shrink-0"
-        />
-        <div class="d-flex flex-column ga-1">
-          <div class="text-h5 font-weight-bold">
-            {{ userInfo.name }}{{ greeting }}
-          </div>
-          <div class="text-body-2 text-medium-emphasis">
-            {{ userInfo.email }}
-          </div>
+    <Card class="welcome-card" :bordered="true">
+      <div class="welcome-content">
+        <Avatar :src="userInfo.avatarUrl" size="large">{{ userInfo.name.slice(0, 1) }}</Avatar>
+        <div>
+          <h1>{{ userInfo.name }}，{{ greeting }}</h1>
+          <p>{{ userInfo.email }}</p>
         </div>
+        <Tag color="pink" type="light">Lolia FRP</Tag>
       </div>
-    </v-card>
+    </Card>
 
-    <v-card elevation="2">
-      <v-row dense>
-        <v-col cols="12" md="4">
-          <div class="pa-4 d-flex flex-column">
-            <v-avatar color="primary" size="40" class="mb-2">
-              <v-icon size="18">fas fa-chart-line</v-icon>
-            </v-avatar>
-            <div class="d-flex flex-column">
-              <div class="text-caption text-medium-emphasis">可用流量</div>
-              <div class="text-h5 font-weight-bold">
-                {{ formatBytes(stats.availableTraffic) }}
-              </div>
-            </div>
-          </div>
-        </v-col>
+    <div class="stat-grid">
+      <Card class="stat-card" :bordered="true"><div class="stat-icon traffic"><IconHistogram /></div><div><span>可用流量</span><strong>{{ formatBytes(stats.availableTraffic) }}</strong></div></Card>
+      <Card class="stat-card" :bordered="true"><div class="stat-icon tunnel"><IconServer /></div><div><span>隧道数量</span><strong>{{ stats.tunnelCount }} / {{ stats.tunnelLimit }}</strong></div></Card>
+      <Card class="stat-card" :bordered="true"><div class="stat-icon bandwidth"><IconActivity /></div><div><span>带宽限制</span><strong>{{ stats.bandwidthLimit === "-" ? "-" : formatBandwidth(Number(stats.bandwidthLimit.split(" ")[0])) + " Mbps" }}</strong></div></Card>
+    </div>
 
-        <v-divider vertical />
-
-        <v-col cols="12" md="4">
-          <div class="pa-4 d-flex flex-column">
-            <v-avatar color="success" size="40" class="mb-2">
-              <v-icon size="18">fas fa-server</v-icon>
-            </v-avatar>
-            <div class="d-flex flex-column">
-              <div class="text-caption text-medium-emphasis">隧道数量</div>
-              <div class="text-h5 font-weight-bold">
-                {{ stats.tunnelCount }} / {{ stats.tunnelLimit }}
-              </div>
-            </div>
-          </div>
-        </v-col>
-
-        <v-divider vertical />
-
-        <v-col cols="12" md="4">
-          <div class="pa-4 d-flex flex-column">
-            <v-avatar color="warning" size="40" class="mb-2">
-              <v-icon size="18">fas fa-gauge-high</v-icon>
-            </v-avatar>
-            <div class="d-flex flex-column">
-              <div class="text-caption text-medium-emphasis">带宽限制</div>
-              <div class="text-h5 font-weight-bold">
-                {{ stats.bandwidthLimit === "-" ? "-" : formatBandwidth(Number(stats.bandwidthLimit.split(" ")[0])) + " Mbps" }}
-              </div>
-            </div>
-          </div>
-        </v-col>
-      </v-row>
-    </v-card>
-
-    <v-card ref="cardRef" elevation="2">
-      <v-card-title>
-        <div class="d-flex flex-column ga-1">
-          <div class="text-caption text-medium-emphasis">近七天流量使用</div>
-          <div class="text-h5 font-weight-bold">
-            {{ formatNumber(total) }}
-          </div>
-        </div>
-      </v-card-title>
-
-      <v-divider />
-
-      <v-card-text class="pa-0 pb-3">
+    <Card ref="cardRef" class="chart-card" :bordered="true" :body-style="{ padding: '0' }">
+      <div class="chart-heading">
+        <div><span>近七天流量使用</span><h2>{{ formatNumber(total) }}</h2></div>
+        <Tag color="blue" type="ghost">7 DAYS</Tag>
+      </div>
+      <div class="chart-body">
         <VisXYContainer
           :data="data"
           :padding="{ top: 40 }"
-          class="h-96"
+          class="traffic-chart"
           :width="width"
           :style="chartVars"
         >
           <VisLine
             :x="x"
             :y="y"
-            color="rgb(var(--v-theme-primary))"
+            color="var(--app-accent)"
             :lineWidth="3"
           />
           <VisArea
             :x="x"
             :y="y"
-            color="rgb(var(--v-theme-primary))"
+            color="var(--app-accent)"
             :opacity="0.1"
           />
 
           <VisAxis type="x" :x="x" :tick-format="xTicks" />
 
           <VisCrosshair
-            color="rgb(var(--v-theme-primary))"
+            color="var(--app-accent)"
             :template="template"
           />
 
           <VisTooltip />
         </VisXYContainer>
-      </v-card-text>
-    </v-card>
+      </div>
+    </Card>
   </div>
 </template>
+
+<style scoped>
+.home-page { display: flex; flex-direction: column; gap: 18px; }
+.welcome-card, .stat-card, .chart-card { background: var(--app-surface); border-color: var(--app-border); }
+.welcome-content { display: flex; align-items: center; gap: 16px; }
+.welcome-content > div:nth-child(2) { min-width: 0; flex: 1; }
+.welcome-content h1 { overflow: hidden; margin: 0; color: var(--app-text-strong); font-size: 20px; letter-spacing: 0; text-overflow: ellipsis; white-space: nowrap; }
+.welcome-content p { margin: 5px 0 0; color: var(--app-text); font-size: 13px; }
+.stat-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.stat-card :deep(.semi-card-body) { display: flex; align-items: center; gap: 14px; }
+.stat-icon { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 40px; border-radius: 6px; }
+.stat-icon.traffic { color: #d83d73; background: #fff0f5; }
+.stat-icon.tunnel { color: #187d62; background: #e9f8f2; }
+.stat-icon.bandwidth { color: #b26700; background: #fff5df; }
+.stat-card span, .chart-heading span { display: block; color: var(--app-text); font-size: 12px; }
+.stat-card strong { display: block; margin-top: 5px; color: var(--app-text-strong); font-size: 20px; }
+.chart-heading { display: flex; align-items: center; justify-content: space-between; min-height: 74px; padding: 0 20px; border-bottom: 1px solid var(--app-border); }
+.chart-heading h2 { margin: 4px 0 0; color: var(--app-text-strong); font-size: 20px; }
+.chart-body { padding: 8px 12px 16px 0; }
+.traffic-chart { height: 360px; }
+@media (max-width: 720px) { .stat-grid { grid-template-columns: 1fr; } .welcome-content :deep(.semi-tag) { display: none; } }
+</style>

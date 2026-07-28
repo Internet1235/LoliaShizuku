@@ -3,6 +3,8 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { beginOAuthLogin } from "@/services/auth";
 import { isWails } from "@/services/platform";
+import { Banner, Button } from "@kousum/semi-ui-vue";
+import { IconArrowRight } from "@kousum/semi-icons-vue";
 
 defineOptions({
   name: "OAuthPage",
@@ -60,69 +62,58 @@ async function handleLogin() {
 </script>
 
 <template>
-  <v-container class="oauth-container">
+  <div class="oauth-container">
     <div class="oauth-content">
-      <!-- Logo Image -->
-      <div class="text-center mb-2">
-        <v-img
-          src="./imgs/yuzu_happy.png"
-          alt="Lolia Shizuku"
-          max-width="150"
-          class="mx-auto"
-        />
+      <div class="oauth-visual">
+        <img src="/imgs/yuzu_happy.png" alt="Lolia Shizuku" />
       </div>
-
-      <!-- Logo / Title -->
-      <div class="text-center mb-7">
-        <h1 class="text-h4 font-weight-bold mb-2">Lolia Shizuku</h1>
-        <p class="text-subtitle-1">
-          「ロリア・雫」由 Wails 驱动的 Lolia FRP 第三方客户端
-        </p>
+      <div class="oauth-copy">
+        <span class="oauth-kicker">LOLiA FRP CLIENT</span>
+        <h1>Lolia Shizuku</h1>
+        <p>登录后管理隧道、流量与服务器上的 frpc Runner。</p>
       </div>
-
-      <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-4">
-        {{ errorMessage }}
-      </v-alert>
-
-      <v-alert
-        v-if="successMessage"
-        type="success"
-        variant="tonal"
-        class="mb-4"
-      >
-        {{ successMessage }}
-      </v-alert>
-
-      <!-- Login Button -->
-      <v-btn
+      <Banner v-if="errorMessage" type="danger" :description="errorMessage" />
+      <Banner v-if="successMessage" type="success" :description="successMessage" />
+      <Button
+        class="login-button"
         :loading="isLoading"
-        color="primary"
         size="large"
+        theme="solid"
+        type="primary"
         block
         @click="handleLogin"
       >
-        <v-icon v-if="!isLoading" start>fas fa-arrow-right-long</v-icon>
         使用 Lolia FRP 账号登录
-      </v-btn>
+        <IconArrowRight v-if="!isLoading" style="font-size: 17px" />
+      </Button>
+      <small>Authorization Code + PKCE</small>
     </div>
-  </v-container>
+  </div>
 </template>
 
 <style scoped>
 .oauth-container {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  min-height: calc(100vh - 106px);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
 }
 
 .oauth-content {
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  text-align: center;
 }
+.oauth-visual { height: 170px; overflow: hidden; }
+.oauth-visual img { width: 170px; height: 170px; object-fit: contain; }
+.oauth-copy { display: flex; flex-direction: column; gap: 8px; }
+.oauth-kicker { color: var(--app-accent); font-size: 11px; font-weight: 700; letter-spacing: 1.4px; }
+.oauth-copy h1 { margin: 0; color: var(--app-text-strong); font: 700 30px/1.2 "Comfortaa", sans-serif; letter-spacing: 0; }
+.oauth-copy p { margin: 0; color: var(--app-text); font-size: 14px; line-height: 1.7; }
+.login-button { width: 100%; }
+.login-button :deep(.semi-button-content) { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.oauth-content small { color: var(--app-text); font: 11px/1.4 ui-monospace, monospace; }
 </style>

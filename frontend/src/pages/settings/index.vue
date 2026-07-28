@@ -1,8 +1,22 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { useTheme } from "vuetify";
 import { storeToRefs } from "pinia";
+import { Banner, Button, Card, Progress, Tag } from "@kousum/semi-ui-vue";
+import {
+  IconCheckboxTick,
+  IconCloud,
+  IconCopy,
+  IconDelete,
+  IconDownload,
+  IconExternalOpen,
+  IconGithubLogo,
+  IconInfoCircle,
+  IconColorPalette,
+  IconRefresh,
+  IconStop,
+  IconUser,
+} from "@kousum/semi-icons-vue";
 import AppLogo from "@/components/AppLogo.vue";
 import {
   accentPresets,
@@ -33,10 +47,9 @@ defineOptions({
 type SettingsPanel = "appearance" | "frpc" | "about" | "account";
 type MirrorMode = "official" | "builtin" | "custom";
 type CustomMirrorMode = "base" | "template";
-type ThemeMode = "system" | "lightTheme" | "darkTheme";
+type ThemeMode = "system" | "light" | "dark";
 
 const router = useRouter();
-const theme = useTheme();
 const prefersDarkMedia =
   typeof window !== "undefined" && typeof window.matchMedia === "function"
     ? window.matchMedia("(prefers-color-scheme: dark)")
@@ -72,8 +85,8 @@ const customMirrorModeItems = [
 
 const themeModeItems = [
   { title: "跟随系统", value: "system" as const },
-  { title: "浅色模式", value: "lightTheme" as const },
-  { title: "深色模式", value: "darkTheme" as const },
+  { title: "浅色模式", value: "light" as const },
+  { title: "深色模式", value: "dark" as const },
 ];
 
 const globalLoadingStore = useGlobalLoadingStore();
@@ -130,6 +143,9 @@ const showMessage = (
   snackbarText.value = text;
   snackbarColor.value = color;
   snackbar.value = true;
+  window.setTimeout(() => {
+    snackbar.value = false;
+  }, 2600);
 };
 
 const panelTitle = computed(() => {
@@ -205,25 +221,23 @@ const frpcStatusChip = computed(() => {
     return { text: "未安装", color: "grey" };
   }
   if (status.value?.latest_error) {
-    return { text: "已安装", color: "success" };
+    return { text: "已安装", color: "green" };
   }
   if (updateAvailable.value) {
-    return { text: "可更新", color: "warning" };
+    return { text: "可更新", color: "orange" };
   }
-  return { text: "已是最新", color: "success" };
+  return { text: "已是最新", color: "green" };
 });
 
 const installDetails = computed(() => [
-  { label: "当前版本", value: installedVersion.value, icon: "fas fa-tag" },
+  { label: "当前版本", value: installedVersion.value },
   {
     label: "二进制",
     value: frpcInstalled.value ? "已安装" : "未安装",
-    icon: "fas fa-microchip",
   },
   {
     label: "安装时间",
     value: formatTime(status.value?.installed?.installed_at),
-    icon: "fas fa-clock",
   },
 ]);
 
@@ -241,11 +255,10 @@ const pathItems = computed(() => {
 });
 
 const latestDetails = computed(() => [
-  { label: "最新标签", value: latestVersion.value, icon: "fas fa-tags" },
+  { label: "最新标签", value: latestVersion.value },
   {
     label: "可更新",
     value: updateAvailable.value ? "是" : "否",
-    icon: "fas fa-arrow-up-from-bracket",
   },
 ]);
 
@@ -293,53 +306,49 @@ const appVersion = computed(() => versionInfo.value?.version || "-");
 const aboutDetails = computed(() => {
   const info = versionInfo.value;
   if (!info) {
-    return [] as Array<{ label: string; value: string; icon: string }>;
+    return [] as Array<{ label: string; value: string }>;
   }
   const shortCommit =
     info.git_commit && info.git_commit.length > 7
       ? info.git_commit.slice(0, 7)
       : info.git_commit || "-";
   return [
-    { label: "版本", value: info.version || "-", icon: "fas fa-tag" },
-    { label: "提交", value: shortCommit, icon: "fas fa-code-commit" },
-    { label: "分支", value: info.git_branch || "-", icon: "fas fa-code-branch" },
-    { label: "构建时间", value: info.build_time || "-", icon: "fas fa-clock" },
-    { label: "平台", value: info.platform || "-", icon: "fas fa-desktop" },
-    { label: "Go", value: info.go_version || "-", icon: "fab fa-golang" },
+    { label: "版本", value: info.version || "-" },
+    { label: "提交", value: shortCommit },
+    { label: "分支", value: info.git_branch || "-" },
+    { label: "构建时间", value: info.build_time || "-" },
+    { label: "平台", value: info.platform || "-" },
+    { label: "Go", value: info.go_version || "-" },
   ];
 });
 
 const aboutLinks = [
   {
     label: "项目仓库",
-    icon: "fab fa-github",
     color: "primary",
     url: "https://github.com/Mxmilu666/LoliaShizuku",
   },
   {
     label: "Lolia 控制台",
-    icon: "fas fa-gauge-high",
     color: "primary",
     url: "https://dash.lolia.link",
   },
   {
     label: "Lolia 官网",
-    icon: "fas fa-globe",
     color: "secondary",
     url: "https://lolia.link",
   },
   {
     label: "Wails",
-    icon: "fas fa-book",
     color: "secondary",
     url: "https://wails.io",
   },
 ];
 
-const getSystemThemeName = (): "lightTheme" | "darkTheme" =>
-  prefersDarkMedia?.matches ? "darkTheme" : "lightTheme";
+const getSystemThemeName = (): "light" | "dark" =>
+  prefersDarkMedia?.matches ? "dark" : "light";
 
-const resolveThemeName = (mode: ThemeMode): "lightTheme" | "darkTheme" => {
+const resolveThemeName = (mode: ThemeMode): "light" | "dark" => {
   if (mode === "system") {
     return getSystemThemeName();
   }
@@ -348,12 +357,14 @@ const resolveThemeName = (mode: ThemeMode): "lightTheme" | "darkTheme" => {
 
 const handleSystemThemePreferenceChange = () => {
   if (themeMode.value === "system") {
-    theme.global.name.value = getSystemThemeName();
+    document.body.setAttribute("theme-mode", getSystemThemeName());
+    applyAccentColors(accentId.value);
   }
 };
 
 const applyTheme = (mode: ThemeMode) => {
-  theme.global.name.value = resolveThemeName(mode);
+  document.body.setAttribute("theme-mode", resolveThemeName(mode));
+  applyAccentColors(accentId.value);
   try {
     localStorage.setItem(themeStorageKey, mode);
   } catch {
@@ -367,31 +378,30 @@ const initTheme = () => {
     const savedTheme = localStorage.getItem(themeStorageKey);
     if (
       savedTheme === "system" ||
+      savedTheme === "light" ||
+      savedTheme === "dark" ||
       savedTheme === "lightTheme" ||
       savedTheme === "darkTheme"
     ) {
-      resolvedTheme = savedTheme;
+      resolvedTheme = savedTheme === "lightTheme" ? "light" : savedTheme === "darkTheme" ? "dark" : savedTheme;
     }
   } catch {
     // ignore localStorage errors
   }
 
   themeMode.value = resolvedTheme;
-  theme.global.name.value = resolveThemeName(resolvedTheme);
+  applyTheme(resolvedTheme);
 };
 
 const handleThemeChange = (value: string | null) => {
-  let nextTheme: ThemeMode = "lightTheme";
+  let nextTheme: ThemeMode = "light";
   if (value === "system") {
     nextTheme = "system";
-  } else if (value === "darkTheme") {
-    nextTheme = "darkTheme";
+  } else if (value === "dark") {
+    nextTheme = "dark";
   }
 
-  if (
-    themeMode.value === nextTheme &&
-    theme.global.name.value === resolveThemeName(nextTheme)
-  ) {
+  if (themeMode.value === nextTheme) {
     return;
   }
 
@@ -405,8 +415,7 @@ const handleAccentChange = (id: string) => {
     return;
   }
   accentId.value = id;
-  // Mutating the theme color maps triggers Vuetify to regenerate its CSS vars.
-  applyAccentColors(theme.themes.value, id);
+  applyAccentColors(id);
   saveAccentId(id);
   showMessage("强调色已更新", "success");
 };
@@ -569,549 +578,75 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="settings-page d-flex flex-column ga-4">
-    <v-snackbar
-      v-model="snackbar"
-      :color="snackbarColor"
-      location="bottom"
-      :timeout="2600"
-    >
-      {{ snackbarText }}
-    </v-snackbar>
+  <div class="settings-page">
+    <Transition name="toast"><div v-if="snackbar" class="settings-toast" :data-type="snackbarColor">{{ snackbarText }}</div></Transition>
+    <aside class="settings-nav">
+      <div class="nav-label">设置菜单</div>
+      <button :class="{ active: activePanel === 'frpc' }" @click="activePanel = 'frpc'"><IconCloud />frpc 管理</button>
+      <button :class="{ active: activePanel === 'appearance' }" @click="activePanel = 'appearance'"><IconColorPalette />外观</button>
+      <button :class="{ active: activePanel === 'about' }" @click="activePanel = 'about'"><IconInfoCircle />关于</button>
+      <button :class="{ active: activePanel === 'account' }" @click="activePanel = 'account'"><IconUser />账号</button>
+    </aside>
 
-    <v-row dense class="settings-layout flex-grow-1">
-      <v-col cols="12" md="3">
-        <v-card elevation="2" class="h-100">
-          <v-list nav density="comfortable">
-            <v-list-subheader>设置菜单</v-list-subheader>
-            <v-list-item
-              prepend-icon="fas fa-cloud-arrow-down"
-              title="frpc 管理"
-              :active="activePanel === 'frpc'"
-              @click="activePanel = 'frpc'"
-            />
-            <v-list-item
-              prepend-icon="fas fa-palette"
-              title="外观"
-              :active="activePanel === 'appearance'"
-              @click="activePanel = 'appearance'"
-            />
-            <v-list-item
-              prepend-icon="fas fa-circle-info"
-              title="关于"
-              :active="activePanel === 'about'"
-              @click="activePanel = 'about'"
-            />
-            <v-list-item
-              prepend-icon="fas fa-user"
-              title="账号"
-              :active="activePanel === 'account'"
-              @click="activePanel = 'account'"
-            />
-          </v-list>
-        </v-card>
-      </v-col>
+    <Card class="settings-content" :bordered="true" :body-style="{ padding: '0' }">
+      <header class="settings-heading"><h1>{{ panelTitle }}</h1><Tag v-if="activePanel === 'frpc'" color="blue" type="ghost">{{ status?.goos || '-' }}/{{ status?.goarch || '-' }}</Tag></header>
 
-      <v-col cols="12" md="9">
-        <v-card elevation="2" class="h-100">
-          <v-card-title class="d-flex align-center justify-space-between">
-            <div class="text-h6 font-weight-bold">{{ panelTitle }}</div>
-            <v-chip v-if="activePanel === 'frpc'" size="small" color="primary" variant="tonal">
-              {{ status?.goos }}/{{ status?.goarch }}
-            </v-chip>
-          </v-card-title>
-          <v-divider />
+      <div v-if="activePanel === 'appearance'" class="panel-stack">
+        <section class="setting-section"><h2>主题模式</h2><select v-model="themeMode" class="form-control" @change="handleThemeChange(themeMode)"><option v-for="item in themeModeItems" :key="item.value" :value="item.value">{{ item.title }}</option></select><p>支持跟随系统、浅色、深色模式，设置会自动保存到本地。</p></section>
+        <section class="setting-section"><h2>强调色</h2><div class="accent-list"><button v-for="preset in accentPresets" :key="preset.id" class="accent-swatch" :class="{ active: accentId === preset.id }" :style="{ background: preset.light }" :title="preset.name" :aria-label="preset.name" @click="handleAccentChange(preset.id)"><IconCheckboxTick v-if="accentId === preset.id" /></button></div><p>强调色会应用到按钮、链接等主色元素，选择即时生效并保存到本地。</p></section>
+      </div>
 
-          <v-card-text v-if="activePanel === 'appearance'" class="d-flex flex-column ga-4">
-            <v-sheet border rounded="lg" class="pa-3 d-flex flex-column ga-3">
-              <div class="text-subtitle-2">主题模式</div>
-              <v-select
-                v-model="themeMode"
-                :items="themeModeItems"
-                item-title="title"
-                item-value="value"
-                hide-details="auto"
-                @update:model-value="handleThemeChange"
-              />
-              <div class="text-caption text-medium-emphasis">
-                支持跟随系统、浅色、深色模式，设置会自动保存到本地。
-              </div>
-            </v-sheet>
+      <div v-else-if="activePanel === 'frpc'" class="panel-stack">
+        <section class="frpc-hero"><div><div class="frpc-title"><h2>frpc</h2><Tag v-if="frpcInstalled" color="pink" type="light">{{ installedVersion }}</Tag><Tag :color="frpcStatusChip.color" type="solid">{{ frpcStatusChip.text }}</Tag></div><p>最新版本 {{ latestVersion }}</p></div><Button theme="solid" type="primary" :loading="installing" :disabled="installing" @click="handleInstallOrUpdate"><IconDownload />{{ actionText }}</Button></section>
+        <div class="action-row"><Button theme="light" type="warning" :loading="canceling" :disabled="!installing || canceling" @click="handleCancelInstall"><IconStop />终止下载</Button><Button theme="light" type="tertiary" :disabled="installing" @click="loadStatus"><IconRefresh />检查更新</Button><Button theme="light" type="danger" :disabled="installing" @click="handleRemove"><IconDelete />删除本地 frpc</Button></div>
+        <section v-if="installing" class="setting-section"><div class="progress-label"><span>{{ phaseLabel }}</span><span>{{ progressDetail || `${Math.floor(percent)}%` }}</span></div><Progress :percent="percent" :show-info="false" :indeterminate="indeterminate" /> </section>
+        <Banner v-if="showMirrorSwitchHint" type="warning" description="frpc 下载失败或超时，可能是当前下载源网络不佳，建议切换镜像后重试。" close-icon @close="showMirrorSwitchHint = false" />
+        <Banner v-if="status?.latest_error" type="warning" :description="`获取最新版本失败：${status.latest_error}`" />
+        <div class="detail-grid"><section class="setting-section"><h2>安装状态</h2><dl><template v-for="detail in installDetails" :key="detail.label"><dt>{{ detail.label }}</dt><dd>{{ detail.value }}</dd></template></dl></section><section class="setting-section"><h2>最新版本</h2><dl><template v-for="detail in latestDetails" :key="detail.label"><dt>{{ detail.label }}</dt><dd>{{ detail.value }}</dd></template></dl></section></div>
+        <section class="setting-section mirror-section"><h2>GitHub 下载源</h2><label>来源<select v-model="mirrorMode" class="form-control" :disabled="installing"><option v-for="item in mirrorModeItems" :key="item.value" :value="item.value">{{ item.title }}</option></select></label><label v-if="mirrorMode === 'builtin'">镜像<select v-model="builtinMirrorPresetID" class="form-control" :disabled="installing"><option v-for="item in builtinMirrorItems" :key="item.value" :value="item.value">{{ item.title }}</option></select></label><Banner v-if="mirrorMode === 'builtin' && !builtinMirrorItems.length" type="info" description="当前未配置内置镜像，请改用官方源或自定义源。" /><label v-if="mirrorMode === 'custom'">自定义方式<select v-model="customMirrorMode" class="form-control" :disabled="installing"><option v-for="item in customMirrorModeItems" :key="item.value" :value="item.value">{{ item.title }}</option></select></label><input v-if="mirrorMode === 'custom' && customMirrorMode === 'base'" v-model="customMirrorBaseURL" class="form-control" placeholder="https://example.com/github.com" :disabled="installing" /><input v-if="mirrorMode === 'custom' && customMirrorMode === 'template'" v-model="customMirrorURLTemplate" class="form-control" placeholder="https://mirrors.example.com/{owner}/{repo}/{tag}/{asset}" :disabled="installing" /><p v-if="mirrorMode === 'custom' && customMirrorMode === 'template'">可用占位符：{owner}、{repo}、{tag}、{asset}</p><Banner v-if="mirrorConfigDirty" type="warning" description="下载源修改尚未保存，点击保存设置后生效。" /><div class="action-row"><Button theme="light" type="primary" :disabled="installing" @click="handleSaveMirrorConfig">保存设置</Button><Button theme="borderless" type="tertiary" :disabled="installing" @click="handleUseOfficialMirror">使用 github.com</Button></div></section>
+        <section class="setting-section"><h2>本地目录</h2><div class="path-list"><div v-for="path in pathItems" :key="path.label" class="path-row"><span>{{ path.label }}</span><code :title="path.value">{{ path.value || '-' }}</code><Button theme="borderless" type="tertiary" size="small" :disabled="!path.value" aria-label="复制路径" @click="copyPath(path.value)"><IconCopy /></Button></div></div></section>
+      </div>
 
-            <v-sheet border rounded="lg" class="pa-3 d-flex flex-column ga-3 soft-card">
-              <div class="text-subtitle-2">强调色</div>
-              <div class="d-flex flex-wrap ga-3">
-                <button
-                  v-for="preset in accentPresets"
-                  :key="preset.id"
-                  type="button"
-                  class="accent-swatch"
-                  :class="{ 'accent-swatch--active': accentId === preset.id }"
-                  :style="{ background: preset.light }"
-                  :title="preset.name"
-                  :aria-label="preset.name"
-                  @click="handleAccentChange(preset.id)"
-                >
-                  <v-icon v-if="accentId === preset.id" size="16" color="white">
-                    fas fa-check
-                  </v-icon>
-                </button>
-              </div>
-              <div class="text-caption text-medium-emphasis">
-                强调色会应用到按钮、链接等主色元素，选择即时生效并保存到本地。
-              </div>
-            </v-sheet>
-          </v-card-text>
+      <div v-else-if="activePanel === 'about'" class="panel-stack">
+        <section class="about-hero"><div class="about-logo"><AppLogo :size="44" /></div><div><div class="frpc-title"><h2>LoliaShizuku</h2><Tag color="pink" type="solid">v{{ appVersion }}</Tag></div><p>「ロリア・雫」由 Wails 驱动的 Lolia FRP 第三方客户端</p></div></section>
+        <section class="setting-section"><h2>构建信息</h2><div v-if="aboutDetails.length" class="about-grid"><div v-for="detail in aboutDetails" :key="detail.label"><span>{{ detail.label }}</span><strong>{{ detail.value }}</strong></div></div><p v-else>无法获取构建信息。</p></section>
+        <section class="setting-section"><h2>相关链接</h2><div class="action-row"><Button v-for="link in aboutLinks" :key="link.url" theme="light" type="primary" @click="openURL(link.url)"><IconGithubLogo v-if="link.url.includes('github')" /><IconExternalOpen v-else />{{ link.label }}</Button></div></section>
+        <p class="about-footer">以 MIT 许可证开源 · Made with ♥ by Mxmilu666</p>
+      </div>
 
-          <v-card-text v-else-if="activePanel === 'frpc'" class="d-flex flex-column ga-4">
-            <v-sheet rounded="xl" class="frpc-hero pa-5 d-flex align-center flex-wrap ga-4">
-              <div class="flex-grow-1" style="min-width: 180px">
-                <div class="d-flex align-center flex-wrap ga-2">
-                  <span class="text-h6 font-weight-bold">frpc</span>
-                  <v-chip
-                    v-if="frpcInstalled"
-                    size="small"
-                    color="primary"
-                    variant="tonal"
-                    rounded="pill"
-                    class="font-weight-medium"
-                  >
-                    {{ installedVersion }}
-                  </v-chip>
-                  <v-chip
-                    size="small"
-                    :color="frpcStatusChip.color"
-                    variant="flat"
-                    rounded="pill"
-                    class="font-weight-medium"
-                  >
-                    {{ frpcStatusChip.text }}
-                  </v-chip>
-                </div>
-                <div class="text-caption text-medium-emphasis mt-1">
-                  最新 {{ latestVersion }}
-                </div>
-              </div>
-              <v-btn
-                color="primary"
-                :loading="installing"
-                :disabled="installing"
-                @click="handleInstallOrUpdate"
-              >
-                <v-icon start>fas fa-download</v-icon>
-                {{ actionText }}
-              </v-btn>
-            </v-sheet>
-
-            <div class="d-flex flex-wrap ga-2">
-              <v-btn
-                color="warning"
-                variant="tonal"
-                :loading="canceling"
-                :disabled="!installing || canceling"
-                @click="handleCancelInstall"
-              >
-                <v-icon start>fas fa-stop</v-icon>
-                终止下载
-              </v-btn>
-              <v-btn
-                color="info"
-                variant="tonal"
-                :disabled="installing"
-                @click="loadStatus"
-              >
-                <v-icon start>fas fa-rotate</v-icon>
-                检查更新
-              </v-btn>
-              <v-btn
-                color="error"
-                variant="tonal"
-                :disabled="installing"
-                @click="handleRemove"
-              >
-                <v-icon start>fas fa-trash</v-icon>
-                删除本地 frpc
-              </v-btn>
-            </div>
-
-            <v-sheet v-if="installing" border rounded="lg" class="pa-3 soft-card">
-              <div class="d-flex align-center justify-space-between mb-2">
-                <span class="text-body-2">{{ phaseLabel }}</span>
-                <span
-                  v-if="progressDetail"
-                  class="text-caption text-medium-emphasis"
-                >
-                  {{ progressDetail }}
-                </span>
-              </div>
-              <v-progress-linear
-                :model-value="percent"
-                :indeterminate="indeterminate"
-                color="primary"
-                height="8"
-                rounded
-              />
-              <div
-                v-if="phase === 'downloading' && total > 0"
-                class="text-caption text-medium-emphasis mt-1 text-end"
-              >
-                {{ Math.floor(percent) }}%
-              </div>
-            </v-sheet>
-
-            <v-alert
-              v-model="showMirrorSwitchHint"
-              type="warning"
-              variant="tonal"
-              density="compact"
-              closable
-              class="message-alert"
-            >
-              frpc 下载失败或超时，可能是当前下载源网络不佳，建议在下方「GitHub
-              下载源」中切换镜像后重试。
-            </v-alert>
-
-            <v-alert
-              v-if="status?.latest_error"
-              type="warning"
-              variant="tonal"
-              density="compact"
-              class="message-alert"
-            >
-              获取最新版本失败：{{ status.latest_error }}
-            </v-alert>
-
-            <v-row dense>
-              <v-col cols="12" md="6">
-                <v-sheet border rounded="lg" class="pa-4 soft-card h-100">
-                  <div class="text-subtitle-2 mb-3">安装状态</div>
-                  <div class="d-flex flex-column ga-3">
-                    <div
-                      v-for="detail in installDetails"
-                      :key="detail.label"
-                      class="d-flex align-center ga-3"
-                    >
-                      <v-icon
-                        :icon="detail.icon"
-                        size="14"
-                        color="medium-emphasis"
-                        class="frpc-detail-icon"
-                      />
-                      <span class="text-caption text-medium-emphasis">{{ detail.label }}</span>
-                      <span class="text-body-2 font-weight-medium ms-auto text-end">
-                        {{ detail.value }}
-                      </span>
-                    </div>
-                  </div>
-                </v-sheet>
-              </v-col>
-              <v-col cols="12" md="6">
-                <v-sheet border rounded="lg" class="pa-4 soft-card h-100">
-                  <div class="text-subtitle-2 mb-3">最新版本</div>
-                  <div class="d-flex flex-column ga-3">
-                    <div
-                      v-for="detail in latestDetails"
-                      :key="detail.label"
-                      class="d-flex align-center ga-3"
-                    >
-                      <v-icon
-                        :icon="detail.icon"
-                        size="14"
-                        color="medium-emphasis"
-                        class="frpc-detail-icon"
-                      />
-                      <span class="text-caption text-medium-emphasis">{{ detail.label }}</span>
-                      <span class="text-body-2 font-weight-medium ms-auto text-end">
-                        {{ detail.value }}
-                      </span>
-                    </div>
-                  </div>
-                </v-sheet>
-              </v-col>
-            </v-row>
-
-            <v-sheet border rounded="lg" class="pa-4 d-flex flex-column ga-3 soft-card">
-              <div class="text-subtitle-2">GitHub 下载源</div>
-              <v-select
-                v-model="mirrorMode"
-                :items="mirrorModeItems"
-                item-title="title"
-                item-value="value"
-                hide-details="auto"
-                :disabled="installing"
-              />
-              <v-select
-                v-if="mirrorMode === 'builtin'"
-                v-model="builtinMirrorPresetID"
-                :items="builtinMirrorItems"
-                item-title="title"
-                item-value="value"
-                hide-details="auto"
-                :disabled="installing"
-                no-data-text="当前没有可用的内置镜像"
-              />
-              <v-alert
-                v-if="mirrorMode === 'builtin' && !builtinMirrorItems.length"
-                type="info"
-                variant="tonal"
-                density="compact"
-              >
-                当前未配置内置镜像，请改用官方源或自定义源。
-              </v-alert>
-              <v-select
-                v-if="mirrorMode === 'custom'"
-                v-model="customMirrorMode"
-                :items="customMirrorModeItems"
-                item-title="title"
-                item-value="value"
-                hide-details="auto"
-                :disabled="installing"
-              />
-              <v-text-field
-                v-if="mirrorMode === 'custom' && customMirrorMode === 'base'"
-                v-model="customMirrorBaseURL"
-                hide-details="auto"
-                placeholder="https://example.com/github.com"
-                :disabled="installing"
-              />
-              <v-text-field
-                v-if="mirrorMode === 'custom' && customMirrorMode === 'template'"
-                v-model="customMirrorURLTemplate"
-                hide-details="auto"
-                placeholder="https://mirrors.114514.com/{owner}/{repo}/{tag}/{asset}"
-                :disabled="installing"
-              />
-              <div
-                v-if="mirrorMode === 'custom' && customMirrorMode === 'template'"
-                class="text-caption text-medium-emphasis"
-              >
-                可用占位符：{owner}、{repo}、{tag}、{asset}
-              </div>
-              <v-alert
-                v-if="mirrorConfigDirty"
-                type="warning"
-                variant="tonal"
-                density="compact"
-              >
-                下载源修改尚未保存，点击「保存设置」后生效。
-              </v-alert>
-              <div class="d-flex flex-wrap ga-2">
-                <v-btn
-                  color="primary"
-                  variant="tonal"
-                  :disabled="installing"
-                  @click="handleSaveMirrorConfig"
-                >
-                  保存设置
-                </v-btn>
-                <v-btn
-                  color="secondary"
-                  variant="text"
-                  :disabled="installing"
-                  @click="handleUseOfficialMirror"
-                >
-                  使用 github.com
-                </v-btn>
-              </div>
-            </v-sheet>
-
-            <v-sheet border rounded="lg" class="pa-4 d-flex flex-column ga-3 soft-card">
-              <div class="text-subtitle-2">本地目录</div>
-              <div class="d-flex flex-column ga-1">
-                <div
-                  v-for="path in pathItems"
-                  :key="path.label"
-                  class="frpc-path-row"
-                >
-                  <span class="frpc-path-label text-caption text-medium-emphasis">
-                    {{ path.label }}
-                  </span>
-                  <code class="frpc-path-value" :title="path.value">
-                    {{ path.value || "-" }}
-                  </code>
-                  <v-btn
-                    icon="fas fa-copy"
-                    size="x-small"
-                    variant="text"
-                    density="comfortable"
-                    :disabled="!path.value"
-                    @click="copyPath(path.value)"
-                  />
-                </div>
-              </div>
-            </v-sheet>
-          </v-card-text>
-
-          <v-card-text v-else-if="activePanel === 'about'" class="d-flex flex-column ga-4">
-            <v-sheet rounded="xl" class="about-hero pa-6 d-flex align-center ga-5">
-              <div class="about-logo d-flex align-center justify-center">
-                <AppLogo :size="44" />
-              </div>
-              <div class="flex-grow-1">
-                <div class="d-flex align-center flex-wrap ga-2">
-                  <span class="text-h5 font-weight-bold">LoliaShizuku</span>
-                  <v-chip
-                    size="small"
-                    color="primary"
-                    variant="flat"
-                    rounded="pill"
-                    class="font-weight-medium"
-                  >
-                    v{{ appVersion }}
-                  </v-chip>
-                </div>
-                <div class="text-body-2 text-medium-emphasis mt-1">
-                  「ロリア・雫」由 Wails 驱动的 Lolia FRP 第三方客户端
-                </div>
-              </div>
-            </v-sheet>
-
-            <v-sheet border rounded="lg" class="pa-4 soft-card">
-              <div class="text-subtitle-2 mb-3">构建信息</div>
-              <v-row dense>
-                <v-col
-                  v-for="detail in aboutDetails"
-                  :key="detail.label"
-                  cols="6"
-                  sm="4"
-                >
-                  <div class="d-flex align-center ga-2">
-                    <v-icon :icon="detail.icon" size="14" color="medium-emphasis" />
-                    <span class="text-caption text-medium-emphasis">{{ detail.label }}</span>
-                  </div>
-                  <div class="text-body-2 font-weight-medium mt-1 about-detail-value">
-                    {{ detail.value }}
-                  </div>
-                </v-col>
-              </v-row>
-              <div
-                v-if="aboutDetails.length === 0"
-                class="text-caption text-medium-emphasis"
-              >
-                无法获取构建信息。
-              </div>
-            </v-sheet>
-
-            <v-sheet border rounded="lg" class="pa-4 d-flex flex-column ga-3 soft-card">
-              <div class="text-subtitle-2">相关链接</div>
-              <div class="d-flex flex-wrap ga-2">
-                <v-btn
-                  v-for="link in aboutLinks"
-                  :key="link.url"
-                  variant="tonal"
-                  :color="link.color"
-                  :prepend-icon="link.icon"
-                  @click="openURL(link.url)"
-                >
-                  {{ link.label }}
-                </v-btn>
-              </div>
-            </v-sheet>
-
-            <div class="text-caption text-medium-emphasis text-center">
-              以 MIT 许可证开源 · Made with ♥ by Mxmilu666
-            </div>
-          </v-card-text>
-
-          <v-card-text v-else class="d-flex flex-column ga-4">
-            <v-alert type="warning" variant="tonal">
-              退出后将清除本地 OAuth 凭据，并停止当前本地 Runner。
-            </v-alert>
-
-            <div class="d-flex flex-wrap ga-3">
-              <v-btn
-                color="error"
-                prepend-icon="fas fa-right-from-bracket"
-                :loading="logoutLoading"
-                :disabled="logoutLoading"
-                @click="handleLogout"
-              >
-                退出登录
-              </v-btn>
-            </div>
-          </v-card-text>
-        </v-card>
-      </v-col>
-    </v-row>
+      <div v-else class="panel-stack"><Banner type="warning" description="退出后将清除本地 OAuth 凭据，并停止当前本地 Runner。" /><div><Button theme="solid" type="danger" :loading="logoutLoading" :disabled="logoutLoading" @click="handleLogout"><IconUser />退出登录</Button></div></div>
+    </Card>
   </div>
 </template>
 
 <style scoped>
-.settings-page {
-  min-height: calc(100vh - 64px - 32px);
-}
-
-.settings-layout :deep(.v-col) {
-  display: flex;
-}
-
-.settings-layout :deep(.v-card) {
-  flex: 1;
-}
-
-.soft-card {
-  border-color: rgba(var(--v-theme-on-surface), 0.08) !important;
-}
-
-.about-logo {
-  width: 76px;
-  height: 76px;
-  flex-shrink: 0;
-  border-radius: 20px;
-  color: rgb(var(--v-theme-primary));
-  background: rgba(var(--v-theme-primary), 0.1);
-}
-
-.about-detail-value {
-  word-break: break-word;
-}
-
-.accent-swatch {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  transition: transform 0.1s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-}
-
-.accent-swatch:hover {
-  transform: scale(1.1);
-}
-
-.accent-swatch--active {
-  border-color: rgb(var(--v-theme-on-surface));
-}
-
-.frpc-path-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.frpc-path-label {
-  flex-shrink: 0;
-  width: 76px;
-}
-
-.frpc-path-value {
-  flex: 1;
-  min-width: 0;
-  padding: 5px 10px;
-  border-radius: 8px;
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-    "Courier New", monospace;
-  font-size: 0.75rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: rgb(var(--v-theme-on-surface));
-  background: rgba(var(--v-theme-on-surface), 0.04);
-}
+.settings-page { position: relative; display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 16px; min-height: calc(100vh - 106px); }
+.settings-nav { display: flex; flex-direction: column; gap: 4px; padding: 14px 8px; align-self: start; border: 1px solid var(--app-border); border-radius: 6px; background: var(--app-surface); }
+.nav-label { padding: 8px 12px; color: var(--app-text); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.settings-nav button { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 0 12px; border: 0; border-radius: 5px; color: var(--app-text); background: transparent; cursor: pointer; text-align: left; }
+.settings-nav button.active { color: var(--app-accent); background: color-mix(in srgb, var(--app-accent) 10%, transparent); font-weight: 600; }
+.settings-content { min-width: 0; background: var(--app-surface); border-color: var(--app-border); }
+.settings-heading { display: flex; align-items: center; justify-content: space-between; min-height: 62px; padding: 0 22px; border-bottom: 1px solid var(--app-border); }
+.settings-heading h1 { margin: 0; color: var(--app-text-strong); font-size: 18px; letter-spacing: 0; }
+.panel-stack { display: flex; flex-direction: column; gap: 16px; padding: 20px; }
+.setting-section { padding: 16px; border: 1px solid var(--app-border); border-radius: 6px; background: var(--app-surface-muted); }
+.setting-section h2 { margin: 0 0 14px; color: var(--app-text-strong); font-size: 14px; letter-spacing: 0; }
+.setting-section p, .frpc-hero p, .about-hero p { margin: 8px 0 0; color: var(--app-text); font-size: 12px; line-height: 1.6; }
+.form-control { box-sizing: border-box; width: 100%; min-height: 36px; padding: 7px 10px; border: 1px solid var(--app-border); border-radius: 5px; outline: none; color: var(--app-text-strong); background: var(--app-surface); }
+.form-control:focus { border-color: var(--app-accent); }
+.mirror-section { display: flex; flex-direction: column; gap: 12px; }
+.mirror-section h2 { margin-bottom: 2px; }.mirror-section label { display: flex; flex-direction: column; gap: 6px; color: var(--app-text); font-size: 12px; }
+.accent-list, .action-row, .frpc-title { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+.accent-swatch { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 2px solid transparent; border-radius: 50%; color: white; cursor: pointer; box-shadow: 0 1px 3px #0003; }
+.accent-swatch.active { border-color: var(--app-text-strong); }
+.frpc-hero, .about-hero { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 20px; border: 1px solid color-mix(in srgb, var(--app-accent) 25%, var(--app-border)); border-radius: 6px; background: color-mix(in srgb, var(--app-accent) 7%, var(--app-surface)); }
+.frpc-title h2 { margin: 0; color: var(--app-text-strong); font-size: 20px; letter-spacing: 0; }
+.progress-label { display: flex; justify-content: space-between; margin-bottom: 10px; color: var(--app-text); font-size: 12px; }
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+dl { display: grid; grid-template-columns: 1fr auto; gap: 12px; margin: 0; font-size: 13px; }dt { color: var(--app-text); }dd { margin: 0; color: var(--app-text-strong); font-weight: 600; text-align: right; }
+.path-list { display: flex; flex-direction: column; }.path-row { display: grid; grid-template-columns: 78px minmax(0, 1fr) 30px; align-items: center; gap: 8px; min-height: 38px; border-bottom: 1px solid var(--app-border); }.path-row:last-child { border-bottom: 0; }.path-row span { color: var(--app-text); font-size: 12px; }.path-row code { overflow: hidden; color: var(--app-text-strong); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.about-logo { display: grid; place-items: center; width: 68px; height: 68px; flex: 0 0 68px; border-radius: 8px; color: var(--app-accent); background: var(--app-surface); }
+.about-hero { justify-content: flex-start; }.about-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }.about-grid span, .about-grid strong { display: block; }.about-grid span { color: var(--app-text); font-size: 11px; }.about-grid strong { overflow-wrap: anywhere; margin-top: 5px; color: var(--app-text-strong); font-size: 13px; }.about-footer { margin: 0; color: var(--app-text); font-size: 11px; text-align: center; }
+.settings-toast { position: fixed; z-index: 30; right: 22px; bottom: 22px; max-width: min(360px, calc(100vw - 44px)); padding: 11px 14px; border: 1px solid var(--app-border); border-left: 3px solid #1677ff; border-radius: 5px; color: var(--app-text-strong); background: var(--app-surface); box-shadow: 0 8px 24px #0002; }.settings-toast[data-type="success"] { border-left-color: #16a06a; }.settings-toast[data-type="error"] { border-left-color: #d33c46; }.toast-enter-active,.toast-leave-active { transition: opacity .18s, transform .18s; }.toast-enter-from,.toast-leave-to { opacity: 0; transform: translateY(8px); }
+@media (max-width: 760px) { .settings-page { grid-template-columns: 1fr; }.settings-nav { flex-direction: row; overflow-x: auto; padding: 7px; }.nav-label { display: none; }.settings-nav button { flex: 0 0 auto; }.detail-grid, .about-grid { grid-template-columns: 1fr; }.frpc-hero { align-items: stretch; flex-direction: column; }.path-row { grid-template-columns: 64px minmax(0, 1fr) 30px; }.panel-stack { padding: 14px; } }
 </style>

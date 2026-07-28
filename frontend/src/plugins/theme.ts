@@ -1,37 +1,3 @@
-import { type ThemeDefinition } from 'vuetify'
-
-export const lightTheme: ThemeDefinition = {
-    dark: false,
-    colors: {
-        background: '#FAFAFA',
-        surface: '#FFFFFF',
-        primary: '#F06292',
-        secondary: '#42A5F5',
-        error: '#FF5252',
-        info: '#2196F3',
-        success: '#4CAF50',
-        warning: '#FB8C00',
-        appbar: '#F06292'
-    }
-}
-
-export const darkTheme: ThemeDefinition = {
-    dark: true,
-    colors: {
-        background: '#121212',
-        surface: '#1E1E1E',
-        primary: '#F491B2',
-        secondary: '#90CAF9',
-        error: '#FF5252',
-        info: '#2196F3',
-        success: '#4CAF50',
-        warning: '#FB8C00',
-        appbar: '#212121'
-    }
-}
-
-// Selectable accent (primary) colors. Each preset carries a light/dark variant
-// so the accent stays legible in both themes.
 export interface AccentPreset {
     id: string
     name: string
@@ -77,21 +43,10 @@ export const saveAccentId = (id: string): void => {
     }
 }
 
-type ThemeColorMap = { colors: Record<string, string> }
-
-// Writes the accent's primary color onto the given light/dark theme color maps.
-// In light mode the app bar tracks the accent; in dark mode the app bar stays
-// neutral, so only primary changes there.
-export const applyAccentColors = (
-    themes: { lightTheme?: ThemeColorMap; darkTheme?: ThemeColorMap },
-    id: string,
-): void => {
+export const applyAccentColors = (id: string): void => {
     const preset = findAccentPreset(id)
-    if (themes.lightTheme) {
-        themes.lightTheme.colors.primary = preset.light
-        themes.lightTheme.colors.appbar = preset.light
-    }
-    if (themes.darkTheme) {
-        themes.darkTheme.colors.primary = preset.dark
-    }
+    const dark = document.body.getAttribute('theme-mode') === 'dark'
+    const color = dark ? preset.dark : preset.light
+    document.documentElement.style.setProperty('--app-accent', color)
+    document.documentElement.style.setProperty('--semi-color-primary', color)
 }

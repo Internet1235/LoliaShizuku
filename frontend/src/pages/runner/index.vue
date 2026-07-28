@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { Banner, Button, Card, Tag } from "@kousum/semi-ui-vue";
+import { IconPlay, IconRefresh, IconStop, IconTerminal } from "@kousum/semi-icons-vue";
 import {
   getRunnerData,
   getRunnerRuntimeStatus,
@@ -60,7 +62,7 @@ const runtimeStatus = ref<RunnerRuntimeStatus>({
 const isRunning = computed(() => runtimeStatus.value.running);
 const logText = computed(() => logs.value.join("\n"));
 const statusLabel = computed(() => (isRunning.value ? "运行中" : "未运行"));
-const statusColor = computed(() => (isRunning.value ? "success" : "warning"));
+const statusColor = computed(() => (isRunning.value ? "green" : "amber"));
 const activeTunnelNames = computed(() => {
   const names = runtimeStatus.value.tunnel_names ?? [];
   if (names.length > 0) {
@@ -334,133 +336,87 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-3">
-    {{ errorMessage }}
-  </v-alert>
-  <v-alert v-else-if="runtimeStatus.last_error" type="warning" variant="tonal" class="mb-3">
-    上次运行错误：{{ runtimeStatus.last_error }}
-  </v-alert>
+  <div class="runner-page">
+    <Banner v-if="errorMessage" type="danger" :description="errorMessage" />
+    <Banner v-else-if="runtimeStatus.last_error" type="warning" :description="`上次运行错误：${runtimeStatus.last_error}`" />
 
-  <v-card elevation="2" class="pa-6 mb-4">
-    <div class="d-flex align-center justify-space-between flex-wrap ga-6">
-      <div class="flex-grow-1">
-        <div class="text-h5 font-weight-bold">LoliaCLI Runner</div>
-        <div class="text-caption text-medium-emphasis">
+    <Card class="runner-hero" :bordered="true">
+      <div class="runner-hero-content">
+        <div class="runner-summary">
+          <div class="runner-title"><IconTerminal style="font-size: 23px" /><h1>LoliaCLI Runner</h1></div>
+          <p>
           已连接至 Runner {{ summary.server !== "-" ? `(${summary.server})` : "" }}（{{ summary.protocol }}）
+          </p>
+          <div class="runner-tags">
+            <Tag :color="statusColor" type="light">{{ statusLabel }}</Tag>
+            <Tag color="blue" type="ghost">PID {{ summary.pid }}</Tag>
+            <Tag color="cyan" type="ghost">{{ summary.version }}</Tag>
+            <Tag color="grey" type="ghost">启动于 {{ summary.startTime }}</Tag>
+          </div>
         </div>
-        <div class="d-flex flex-wrap ga-2 mt-3">
-          <v-chip :color="statusColor" size="small" variant="tonal" class="rounded-pill">
-            {{ statusLabel }}
-          </v-chip>
-          <v-chip color="primary" size="small" variant="outlined" class="rounded-pill">
-            PID {{ summary.pid }}
-          </v-chip>
-          <v-chip color="info" size="small" variant="outlined" class="rounded-pill">
-            {{ summary.version }}
-          </v-chip>
-          <v-chip color="secondary" size="small" variant="outlined" class="rounded-pill">
-            启动于 {{ summary.startTime }}
-          </v-chip>
-        </div>
-      </div>
-
-      <div class="d-flex flex-wrap ga-3">
-        <v-btn
-          color="success"
-          prepend-icon="fas fa-play"
+        <div class="runner-actions">
+          <Button theme="solid" type="primary"
           :loading="runningAction"
           :disabled="isRunning || runningAction || !selectedTunnelName"
-          @click="handleStartRunner"
-        >
-          启动
-        </v-btn>
-        <v-btn
-          color="error"
-          prepend-icon="fas fa-stop"
+          @click="handleStartRunner"><IconPlay style="font-size: 15px" />启动</Button>
+          <Button theme="light" type="danger"
           :loading="runningAction"
           :disabled="!isRunning || runningAction"
-          @click="handleStopRunner"
-        >
-          停止
-        </v-btn>
-        <v-btn color="primary" prepend-icon="fas fa-rotate" @click="loadRunnerData">
-          刷新
-        </v-btn>
+          @click="handleStopRunner"><IconStop style="font-size: 15px" />停止</Button>
+          <Button theme="light" type="tertiary" @click="loadRunnerData"><IconRefresh style="font-size: 15px" />刷新</Button>
+        </div>
       </div>
-    </div>
-  </v-card>
+    </Card>
 
-  <v-row>
-    <v-col cols="12" md="4">
-      <v-card elevation="2" class="h-100 d-flex flex-column">
-        <v-card-title class="d-flex align-center justify-space-between">
-          <div class="text-h6 font-weight-bold">隧道状态</div>
-          <v-chip size="x-small" color="primary" variant="outlined">
-            {{ activeTunnels.length }} 条规则
-          </v-chip>
-        </v-card-title>
-        <v-divider />
-        <v-card-text class="d-flex flex-column ga-3 flex-grow-1 overflow-auto">
-          <v-sheet
-            v-for="tunnel in activeTunnels"
-            :key="`${tunnel.name}-${tunnel.local}`"
-            class="pa-3 d-flex align-center justify-space-between"
-            rounded="lg"
-            border
-          >
+    <div class="runner-grid">
+      <Card class="runner-panel" :bordered="true" :body-style="{ padding: '0' }">
+        <div class="panel-heading"><h2>隧道状态</h2><Tag color="blue" type="ghost">{{ activeTunnels.length }} 条规则</Tag></div>
+        <div class="tunnel-status-list">
+          <div v-for="tunnel in activeTunnels" :key="`${tunnel.name}-${tunnel.local}`" class="tunnel-status-item">
             <div>
-              <div class="text-subtitle-1 font-weight-bold">
-                {{ tunnel.remark }}
-              </div>
-              <div class="text-caption text-medium-emphasis">
-                {{ tunnel.local }} → {{ formatRuntimeRemote(tunnel) }}
-              </div>
+              <strong>{{ tunnel.remark }}</strong>
+              <span>{{ tunnel.local }} → {{ formatRuntimeRemote(tunnel) }}</span>
             </div>
-            <v-chip :color="tunnel.statusColor" size="x-small" variant="tonal">
-              {{ tunnel.status }}
-            </v-chip>
-          </v-sheet>
-          <v-sheet
-            v-if="activeTunnels.length === 0"
-            class="pa-4 text-caption text-medium-emphasis"
-            rounded="lg"
-            border
-          >
-            Runner 未运行，暂无已启动隧道。
-          </v-sheet>
-        </v-card-text>
-      </v-card>
-    </v-col>
-
-    <v-col cols="12" md="8">
-      <v-card elevation="2" class="h-100">
-        <v-card-title class="d-flex align-center justify-space-between flex-wrap ga-4">
-          <div>
-            <div class="text-h6 font-weight-bold">frpc 运行日志</div>
-            <div class="text-caption text-medium-emphasis">
-              启动命令：{{ runtimeStatus.command || "-" }}
-            </div>
+            <Tag :color="tunnel.statusColor === 'success' ? 'green' : 'blue'" type="light" size="small">{{ tunnel.status }}</Tag>
           </div>
-        </v-card-title>
-        <v-divider />
-        <v-card-text class="pa-4">
-          <v-sheet
-            class="pa-4 overflow-auto bg-grey-darken-4 text-grey-lighten-4"
-            rounded="lg"
-            border
-            style="min-height: 360px; max-height: 460px"
-          >
-            <pre class="ma-0 text-body-2 log-text-mono" v-text="logText" />
-          </v-sheet>
-        </v-card-text>
-      </v-card>
-    </v-col>
-  </v-row>
+          <div v-if="activeTunnels.length === 0" class="runner-empty">Runner 未运行，暂无已启动隧道。</div>
+        </div>
+      </Card>
+
+      <Card class="runner-panel log-panel" :bordered="true" :body-style="{ padding: '0' }">
+        <div class="panel-heading log-heading"><div><h2>frpc 运行日志</h2><span>启动命令：{{ runtimeStatus.command || "-" }}</span></div></div>
+        <div class="log-viewport"><pre class="log-text-mono" v-text="logText" /></div>
+      </Card>
+    </div>
+  </div>
 </template>
 <style scoped>
-.log-text-mono {
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-    "Courier New", monospace;
+.runner-page { display: flex; flex-direction: column; gap: 18px; }
+.runner-hero, .runner-panel { background: var(--app-surface); border-color: var(--app-border); }
+.runner-hero-content { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.runner-title, .runner-tags, .runner-actions { display: flex; align-items: center; gap: 8px; }
+.runner-title { color: var(--app-accent); }
+.runner-title h1 { margin: 0; color: var(--app-text-strong); font-size: 22px; }
+.runner-summary p { margin: 5px 0 14px; color: var(--app-text); font-size: 13px; }
+.runner-tags { flex-wrap: wrap; }
+.runner-actions { flex-wrap: wrap; justify-content: flex-end; }
+.runner-actions :deep(.semi-button-content) { display: flex; align-items: center; gap: 6px; }
+.runner-grid { display: grid; grid-template-columns: minmax(280px, .8fr) minmax(0, 1.7fr); gap: 18px; }
+.panel-heading { display: flex; align-items: center; justify-content: space-between; min-height: 68px; padding: 0 20px; border-bottom: 1px solid var(--app-border); box-sizing: border-box; }
+.panel-heading h2 { margin: 0; color: var(--app-text-strong); font-size: 16px; }
+.tunnel-status-list { display: flex; flex-direction: column; gap: 10px; padding: 16px; }
+.tunnel-status-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px; border: 1px solid var(--app-border); border-radius: 6px; }
+.tunnel-status-item div { min-width: 0; }
+.tunnel-status-item strong, .tunnel-status-item span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tunnel-status-item strong { color: var(--app-text-strong); font-size: 14px; }
+.tunnel-status-item span, .log-heading span { margin-top: 3px; color: var(--app-text); font-size: 11px; }
+.runner-empty { padding: 24px; color: var(--app-text); font-size: 13px; text-align: center; }
+.log-heading { justify-content: flex-start; }
+.log-viewport { height: 420px; overflow: auto; background: #101216; color: #d7dce2; }
+.log-text-mono { min-width: max-content; margin: 0; padding: 18px; font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+@media (max-width: 900px) {
+  .runner-hero-content { align-items: flex-start; flex-direction: column; }
+  .runner-actions { justify-content: flex-start; }
+  .runner-grid { grid-template-columns: 1fr; }
 }
 </style>

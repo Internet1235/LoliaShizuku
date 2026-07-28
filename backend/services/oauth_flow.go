@@ -38,6 +38,7 @@ func resolveOAuthConfig() (*oauth2.Config, error) {
 	if resolvedClientID == "" {
 		resolvedClientID = defaultOAuthClientID
 	}
+	clientSecret := strings.TrimSpace(os.Getenv("LOLIA_OAUTH_CLIENT_SECRET"))
 
 	authorizeURL := strings.TrimSpace(os.Getenv("LOLIA_OAUTH_AUTHORIZE_URL"))
 	if authorizeURL == "" {
@@ -55,9 +56,10 @@ func resolveOAuthConfig() (*oauth2.Config, error) {
 	}
 
 	return &oauth2.Config{
-		ClientID:    resolvedClientID,
-		RedirectURL: redirectURL,
-		Scopes:      strings.Fields(defaultOAuthScope),
+		ClientID:     resolvedClientID,
+		ClientSecret: clientSecret,
+		RedirectURL:  redirectURL,
+		Scopes:       strings.Fields(defaultOAuthScope),
 		Endpoint: oauth2.Endpoint{
 			AuthURL:   authorizeURL,
 			TokenURL:  tokenURL,
