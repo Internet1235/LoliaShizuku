@@ -291,7 +291,7 @@ onMounted(() => {
 .welcome-content p { margin: 5px 0 0; color: var(--app-text); font-size: 13px; }
 .stat-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .stat-card :deep(.semi-card-body) { display: flex; align-items: center; gap: 14px; }
-.stat-icon { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 40px; border-radius: 6px; }
+.stat-icon { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 40px; border-radius: var(--app-radius-control); }
 .stat-icon.traffic { color: #d83d73; background: #fff0f5; }
 .stat-icon.tunnel { color: #187d62; background: #e9f8f2; }
 .stat-icon.bandwidth { color: #b26700; background: #fff5df; }

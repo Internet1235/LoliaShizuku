@@ -49,6 +49,7 @@ const showNavigation = computed(() => route.path !== "/oauth");
   height: 100%;
   flex: 1;
   overflow-y: auto;
+  background: var(--app-surface);
 }
 
 .app-page-wrap {

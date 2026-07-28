@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { Tooltip } from "@kousum/semi-ui-vue";
 import {
   IconHome,
   IconServer,
@@ -19,17 +18,16 @@ const navigation = [
   <aside class="app-sidebar">
     <div class="sidebar-label">工作台</div>
     <nav class="sidebar-nav" aria-label="主导航">
-      <Tooltip
+      <router-link
         v-for="item in navigation"
         :key="item.to"
-        :content="item.label"
-        position="right"
+        :to="item.to"
+        class="sidebar-link"
+        :aria-label="item.label"
       >
-        <router-link :to="item.to" class="sidebar-link" :aria-label="item.label">
-          <component :is="item.icon" class="sidebar-icon" />
-          <span>{{ item.label }}</span>
-        </router-link>
-      </Tooltip>
+        <component :is="item.icon" class="sidebar-icon" />
+        <span>{{ item.label }}</span>
+      </router-link>
     </nav>
     <div class="sidebar-meta">
       <span>LOLiA</span>
@@ -48,7 +46,7 @@ const navigation = [
   padding: 18px 12px 14px;
   border-right: 1px solid var(--app-border);
   box-sizing: border-box;
-  background: var(--app-surface-muted);
+  background: var(--app-sidebar);
 }
 .sidebar-label {
   padding: 0 10px 9px;
@@ -64,18 +62,17 @@ const navigation = [
   gap: 11px;
   min-height: 40px;
   padding: 0 11px;
-  border-radius: 5px;
+  border-radius: var(--app-radius-control);
   color: var(--app-text);
   font-size: 13px;
   font-weight: 600;
   text-decoration: none;
   transition: color .16s ease, background .16s ease;
 }
-.sidebar-link:hover { color: var(--app-text-strong); background: var(--app-surface-muted); }
+.sidebar-link:hover { color: var(--app-text-strong); background: var(--app-nav-hover); }
 .sidebar-link.router-link-active {
-  color: #1677ff;
+  color: var(--app-accent);
   background: var(--app-nav-active);
-  box-shadow: 0 1px 3px rgba(20, 24, 31, .08);
 }
 .sidebar-icon { flex: 0 0 auto; font-size: 17px; }
 .sidebar-meta { display: flex; flex-direction: column; gap: 2px; margin-top: auto; padding: 12px 10px 2px; color: var(--app-text); }

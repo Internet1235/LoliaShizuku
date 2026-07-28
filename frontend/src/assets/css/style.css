@@ -14,32 +14,38 @@ body {
 
 :root {
   color-scheme: light;
-  --app-bg: #f5f6f8;
+  --app-bg: #f1f2f3;
   --app-surface: #ffffff;
-  --app-surface-muted: #f7f8fa;
-  --app-nav-active: #fcfcfd;
-  --app-border: #e5e7eb;
-  --app-text: #68707d;
-  --app-text-strong: #1f242d;
-  --app-accent: #1677ff;
-  --semi-color-primary: #1677ff;
-  --semi-color-primary-hover: #0f68e8;
-  --semi-color-primary-active: #0b5ccc;
+  --app-surface-muted: #f0f1f2;
+  --app-sidebar: #f3f3f3;
+  --app-nav-hover: #e9eaeb;
+  --app-nav-active: #ffffff;
+  --app-border: #dedfe1;
+  --app-text: #737373;
+  --app-text-strong: #242424;
+  --app-accent: #315efb;
+  --app-radius-control: 8px;
+  --app-radius-panel: 10px;
+  --semi-color-primary: #315efb;
+  --semi-color-primary-hover: #244fe5;
+  --semi-color-primary-active: #1d42c5;
 }
 
 body[theme-mode="dark"] {
   color-scheme: dark;
-  --app-bg: #141619;
-  --app-surface: #1d2025;
-  --app-surface-muted: #24282e;
-  --app-nav-active: #30343a;
-  --app-border: #343941;
-  --app-text: #a8afb9;
-  --app-text-strong: #eef0f3;
-  --app-accent: #1677ff;
-  --semi-color-primary: #1677ff;
-  --semi-color-primary-hover: #3c8cff;
-  --semi-color-primary-active: #0f68e8;
+  --app-bg: #0d0d0d;
+  --app-surface: #202020;
+  --app-surface-muted: #101010;
+  --app-sidebar: #0d0d0d;
+  --app-nav-hover: #191919;
+  --app-nav-active: #242424;
+  --app-border: #373737;
+  --app-text: #a4a4a4;
+  --app-text-strong: #eeeeee;
+  --app-accent: #4d74ff;
+  --semi-color-primary: #4d74ff;
+  --semi-color-primary-hover: #6688ff;
+  --semi-color-primary-active: #365fe9;
 }
 
 body {
@@ -49,3 +55,64 @@ body {
 }
 
 button, input, textarea, select { font: inherit; }
+
+.semi-button {
+  min-height: 36px;
+  border-radius: var(--app-radius-control);
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.semi-button-light {
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+}
+
+.semi-button-light:hover:not(:disabled),
+.semi-button-light:focus-visible:not(:disabled) {
+  border-color: color-mix(in srgb, var(--app-text) 45%, var(--app-border));
+  background: var(--app-surface-muted);
+}
+
+.semi-button-light:active:not(:disabled) {
+  background: var(--app-nav-hover);
+}
+
+.semi-button-solid.semi-button-primary {
+  border-color: var(--app-accent);
+  background: var(--app-accent);
+}
+
+.semi-input-wrapper,
+.semi-input-textarea-wrapper,
+.semi-select,
+.semi-select-selection,
+.semi-datepicker,
+.semi-input-number {
+  border-radius: var(--app-radius-control);
+}
+
+.semi-input-wrapper,
+.semi-input-textarea-wrapper,
+.semi-select,
+.semi-input-number {
+  border-color: var(--app-border);
+  background: var(--app-surface);
+}
+
+.semi-card,
+.semi-modal-content,
+.semi-dropdown-menu,
+.semi-popover-content,
+.semi-banner {
+  border-radius: var(--app-radius-panel);
+}
+
+.semi-card {
+  border-color: var(--app-border);
+  box-shadow: none;
+}
+
+.semi-dropdown-menu {
+  overflow: hidden;
+}

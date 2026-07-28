@@ -27,7 +27,7 @@ import {
   getTunnelDetail,
   getTunnelsOverview,
   startRunner,
-  stopRunner,
+  stopTunnelRunner,
   updateTunnel,
   type CreateTunnelInput,
   type NodeItem,
@@ -52,12 +52,15 @@ const createModalVisible = ref(false);
 const loadingNodes = ref(false);
 const creatingTunnel = ref(false);
 const createError = ref("");
-const createForm = reactive<CreateTunnelInput>({
+const createForm = reactive<Omit<CreateTunnelInput, "local_port" | "remote_port"> & {
+  local_port: number | null;
+  remote_port: number | null;
+}>({
   node_id: 0,
   type: "tcp",
-  local_ip: "127.0.0.1",
-  local_port: 0,
-  remote_port: 0,
+  local_ip: "",
+  local_port: null,
+  remote_port: null,
   custom_domain: "",
   remark: "",
 });
@@ -149,9 +152,9 @@ const resetCreateForm = () => {
   Object.assign(createForm, {
     node_id: 0,
     type: "tcp",
-    local_ip: "127.0.0.1",
-    local_port: 0,
-    remote_port: 0,
+    local_ip: "",
+    local_port: null,
+    remote_port: null,
     custom_domain: "",
     remark: "",
   });
@@ -179,7 +182,7 @@ const formatNodeLoad = (load: number) => {
 const handleProtocolChange = (event: Event) => {
   createForm.type = (event.target as HTMLSelectElement).value;
   if (isWebProtocol.value) {
-    createForm.remote_port = 0;
+    createForm.remote_port = null;
   } else {
     createForm.custom_domain = "";
   }
@@ -217,10 +220,10 @@ const validateCreateForm = () => {
   if (createForm.node_id <= 0) return "请选择可用节点";
   if (!createForm.remark.trim()) return "请填写隧道备注";
   if (!createForm.local_ip.trim()) return "请填写本地 IP";
-  if (!Number.isInteger(createForm.local_port) || createForm.local_port < 1 || createForm.local_port > 65535) {
+  if (createForm.local_port === null || !Number.isInteger(createForm.local_port) || createForm.local_port < 1 || createForm.local_port > 65535) {
     return "本地端口必须是 1 到 65535 之间的整数";
   }
-  if (!isWebProtocol.value && (!Number.isInteger(createForm.remote_port) || createForm.remote_port < 1 || createForm.remote_port > 65535)) {
+  if (!isWebProtocol.value && createForm.remote_port !== null && (!Number.isInteger(createForm.remote_port) || createForm.remote_port < 1 || createForm.remote_port > 65535)) {
     return "远程端口必须是 1 到 65535 之间的整数";
   }
   if (isWebProtocol.value && !createForm.custom_domain.trim()) return "请填写自定义域名";
@@ -236,9 +239,10 @@ const handleCreateTunnel = async () => {
     await createTunnel({
       ...createForm,
       local_ip: createForm.local_ip.trim(),
+      local_port: createForm.local_port!,
       custom_domain: isWebProtocol.value ? createForm.custom_domain.trim() : "",
       remark: createForm.remark.trim(),
-      remote_port: isWebProtocol.value ? 0 : createForm.remote_port,
+      remote_port: isWebProtocol.value ? 0 : (createForm.remote_port ?? 0),
     });
     createModalVisible.value = false;
     successMessage.value = "隧道创建成功";
@@ -447,7 +451,8 @@ const handleStopTunnel = async (tunnelName: string) => {
   errorMessage.value = "";
   startingTunnelName.value = tunnelName;
   try {
-    runnerStatus.value = await stopRunner();
+    await stopTunnelRunner(tunnelName);
+    runnerStatus.value = await getRunnerRuntimeStatus();
     await loadTunnels();
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : "停止隧道失败，请稍后重试";
@@ -469,9 +474,7 @@ const handleRestartTunnel = async (tunnelName: string) => {
   errorMessage.value = "";
   startingTunnelName.value = tunnelName;
   try {
-    if (isRunnerRunning.value) {
-      await stopRunner();
-    }
+    await stopTunnelRunner(tunnelName);
     runnerStatus.value = await startRunner([tunnelName]);
     await loadTunnels();
     await router.push("/runner");
@@ -592,6 +595,7 @@ onMounted(() => {
         <div class="tunnel-actions" @click.stop>
           <Button
             class="tunnel-toggle-button"
+            :class="isStartedTunnel(tunnel.name) ? 'is-stop' : 'is-start'"
             theme="light"
             :type="isStartedTunnel(tunnel.name) ? 'tertiary' : 'primary'"
             size="small"
@@ -667,6 +671,7 @@ onMounted(() => {
             <div class="detail-actions" @click.stop>
               <Button
                 class="tunnel-toggle-button"
+                :class="isStartedTunnel(tunnelDetail.name) ? 'is-stop' : 'is-start'"
                 theme="light"
                 :type="isStartedTunnel(tunnelDetail.name) ? 'tertiary' : 'primary'"
                 :loading="startingTunnelName === tunnelDetail.name"
@@ -794,8 +799,8 @@ onMounted(() => {
             </div>
             <div class="form-grid">
               <label class="field field-wide">
-                <span>隧道备注</span>
-                <input v-model="createForm.remark" type="text" maxlength="64" placeholder="例如：家中 NAS" />
+                <span>隧道名称</span>
+                <input v-model="createForm.remark" type="text" maxlength="64" placeholder="例如：MC 服务器" />
               </label>
               <label class="field">
                 <span>协议类型</span>
@@ -862,7 +867,7 @@ onMounted(() => {
             <div class="form-grid">
               <label class="field">
                 <span>本地 IP</span>
-                <input v-model="createForm.local_ip" type="text" placeholder="127.0.0.1" />
+                <input v-model="createForm.local_ip" type="text" placeholder="例如：127.0.0.1" />
               </label>
               <label class="field">
                 <span>本地端口</span>
@@ -883,7 +888,7 @@ onMounted(() => {
               </label>
               <label v-else class="field">
                 <span>远程端口</span>
-                <input v-model.number="createForm.remote_port" type="number" min="1" max="65535" placeholder="例如：11451" />
+                <input v-model.number="createForm.remote_port" type="number" min="1" max="65535" placeholder="留空自动分配" />
               </label>
             </div>
           </section>
@@ -908,13 +913,14 @@ onMounted(() => {
 .page-heading p { margin-top: 6px; color: var(--app-text); font-size: 13px; }
 .tunnel-toolbar { display: grid; grid-template-columns: minmax(180px, 260px) auto; align-items: center; gap: 10px; }
 .toolbar-actions { display: flex; align-items: center; gap: 10px; }
+.tunnel-toolbar :deep(.semi-input-wrapper), .tunnel-toolbar :deep(.semi-button) { border-radius: var(--app-radius-control); }
 .tunnel-toolbar :deep(.semi-button-content), .tunnel-actions :deep(.semi-button-content),
 .traffic-meta span, .modal-actions :deep(.semi-button-content), .detail-actions :deep(.semi-button-content),
 .detail-savebar :deep(.semi-button-content), .row-node strong { display: flex; align-items: center; gap: 6px; }
-.tunnel-list { overflow: hidden; border: 1px solid var(--app-border); border-radius: 7px; background: var(--app-surface); }
+.tunnel-list { overflow: hidden; border: 1px solid var(--app-border); border-radius: var(--app-radius-panel); background: var(--app-surface); }
 .tunnel-row { display: grid; min-height: 82px; grid-template-columns: 66px minmax(150px, 1.15fr) minmax(110px, .8fr) minmax(130px, .9fr) minmax(130px, .9fr) 118px auto; align-items: center; gap: 16px; box-sizing: border-box; padding: 12px 16px; border-bottom: 1px solid var(--app-border); outline: none; cursor: pointer; transition: background .16s; }
 .tunnel-row:hover, .tunnel-row:focus-visible { background: var(--app-surface-muted); }
-.protocol-mark { display: grid; width: 52px; height: 52px; grid-template-rows: 1fr auto; place-items: center; border-radius: 7px; background: rgba(22, 119, 255, .1); color: #1677ff; }
+.protocol-mark { display: grid; width: 52px; height: 52px; grid-template-rows: 1fr auto; place-items: center; border-radius: var(--app-radius-control); background: color-mix(in srgb, var(--app-accent) 10%, transparent); color: var(--app-accent); }
 .protocol-mark span { padding-bottom: 5px; font-size: 9px; font-weight: 800; line-height: 1; }
 .protocol-udp { background: rgba(10, 158, 121, .11); color: #0a9e79; }
 .protocol-http, .protocol-https { background: rgba(230, 126, 34, .12); color: #c76816; }
@@ -930,17 +936,19 @@ onMounted(() => {
 .traffic-meta { flex-direction: column; align-items: flex-start; gap: 7px; color: var(--app-text); font-size: 11px; }
 .traffic-meta span:first-child { color: #168f63; }
 .traffic-meta span:last-child { color: #2764e7; }
-.tunnel-actions { justify-content: flex-end; }
-.tunnel-toggle-button { width: 32px; height: 32px; padding: 0; border-radius: 7px; }
-.more-action-button { width: 32px; height: 32px; border-radius: 7px; }
+.tunnel-actions { justify-content: flex-end; padding: 4px; border: 1px solid var(--app-border); border-radius: var(--app-radius-panel); background: var(--app-surface); }
+.tunnel-toggle-button { width: 38px; height: 38px; padding: 0; border: 1px solid transparent; border-radius: var(--app-radius-control); background: transparent; color: var(--app-text); }
+.tunnel-toggle-button.is-start:hover:not(:disabled), .tunnel-toggle-button.is-start:focus-visible:not(:disabled), .tunnel-toggle-button.is-start:active:not(:disabled) { border-color: color-mix(in srgb, var(--app-accent) 28%, transparent); background: color-mix(in srgb, var(--app-accent) 12%, var(--app-surface)); color: var(--app-accent); }
+.tunnel-toggle-button.is-stop:hover:not(:disabled), .tunnel-toggle-button.is-stop:focus-visible:not(:disabled), .tunnel-toggle-button.is-stop:active:not(:disabled) { border-color: color-mix(in srgb, #e5484d 28%, transparent); background: color-mix(in srgb, #e5484d 12%, var(--app-surface)); color: #d9363e; }
+.more-action-button { width: 38px; height: 38px; border-radius: var(--app-radius-control); }
 .more-action-button:hover, .more-action-button:focus-visible { background: var(--app-surface-muted); }
 .list-summary { padding: 11px 16px; color: var(--app-text); font-size: 12px; text-align: right; }
-.empty-card { padding: 56px 20px; border: 1px solid var(--app-border); border-radius: 7px; background: var(--app-surface); }
-.detail-modal { color: var(--app-text-strong); }
+.empty-card { padding: 56px 20px; border: 1px solid var(--app-border); border-radius: var(--app-radius-panel); background: var(--app-surface); }
+.detail-modal { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow: hidden; color: var(--app-text-strong); }
 .detail-state { display: grid; min-height: 320px; place-items: center; color: var(--app-text); font-size: 13px; }
 .error-state { color: #d54941; }
 .detail-summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 16px; padding: 8px 24px 22px; }
-.detail-logo { display: grid; width: 52px; height: 52px; place-items: center; border-radius: 7px; background: rgba(22, 119, 255, .1); color: #1677ff; }
+.detail-logo { display: grid; width: 52px; height: 52px; place-items: center; border-radius: var(--app-radius-control); background: color-mix(in srgb, var(--app-accent) 10%, transparent); color: var(--app-accent); }
 .detail-title { min-width: 0; }
 .detail-title h2 { overflow: hidden; margin: 3px 0; font-size: 18px; text-overflow: ellipsis; white-space: nowrap; }
 .detail-title code, .detail-eyebrow { color: var(--app-text); font-size: 11px; }
@@ -951,7 +959,7 @@ onMounted(() => {
 .detail-tabs button.active { color: #1677ff; }
 .detail-tabs button.active::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: #1677ff; content: ""; }
 .detail-error { margin: 16px 24px 0; }
-.detail-content, .detail-settings { display: flex; max-height: calc(100vh - 290px); min-height: 300px; flex-direction: column; gap: 22px; overflow-y: auto; padding: 22px 24px 26px; }
+.detail-content, .detail-settings { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 22px; overflow-y: auto; padding: 22px 24px 26px; overscroll-behavior: contain; }
 .detail-section { min-width: 0; }
 .detail-section h3 { margin: 0 0 11px; color: var(--app-text-strong); font-size: 13px; }
 .detail-table { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--app-border); border-left: 1px solid var(--app-border); }
@@ -965,30 +973,30 @@ onMounted(() => {
 .settings-heading { display: flex; justify-content: space-between; color: #1677ff; }
 .settings-heading h3, .settings-heading p { margin: 0; }
 .settings-heading p { margin-top: 4px; color: var(--app-text); font-size: 11px; }
-.toggle-field { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--app-border); border-radius: 6px; background: var(--app-surface-muted); }
+.toggle-field { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--app-border); border-radius: var(--app-radius-control); background: var(--app-surface-muted); }
 .toggle-field input { width: 16px; height: 16px; accent-color: #1677ff; }
 .toggle-field span { display: flex; flex-direction: column; gap: 2px; }
 .toggle-field strong { font-size: 12px; }
 .toggle-field small { color: var(--app-text); font-size: 11px; }
 .detail-savebar { position: sticky; bottom: -26px; z-index: 2; display: flex; justify-content: flex-end; gap: 10px; margin: 2px -24px -26px; padding: 14px 24px; border-top: 1px solid var(--app-border); background: var(--app-surface); box-shadow: 0 -6px 16px rgba(20, 24, 31, .04); }
-.create-form { display: grid; grid-template-rows: minmax(0, 1fr) auto; max-height: calc(100vh - 132px); }
-.create-form-content { display: flex; min-height: 0; flex-direction: column; gap: 14px; overflow-y: auto; padding: 4px 24px 18px; }
+.create-form { display: grid; min-height: 0; flex: 1; grid-template-rows: minmax(0, 1fr) auto; }
+.create-form-content { display: flex; min-height: 0; flex-direction: column; gap: 14px; overflow-y: auto; padding: 4px 24px 18px; overscroll-behavior: contain; }
 .modal-description { margin: -2px 0 2px; color: var(--app-text); font-size: 12px; }
-.form-section { padding: 18px; border: 1px solid var(--app-border); border-radius: 8px; background: var(--app-surface-muted); }
+.form-section { padding: 18px; border: 1px solid var(--app-border); border-radius: var(--app-radius-panel); background: var(--app-surface-muted); }
 .section-heading { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
-.section-heading > span { display: grid; width: 28px; height: 28px; flex: 0 0 28px; place-items: center; border-radius: 6px; background: rgba(22, 119, 255, .12); color: #1677ff; font-size: 11px; font-weight: 700; }
+.section-heading > span { display: grid; width: 28px; height: 28px; flex: 0 0 28px; place-items: center; border-radius: var(--app-radius-control); background: color-mix(in srgb, var(--app-accent) 12%, transparent); color: var(--app-accent); font-size: 11px; font-weight: 700; }
 .section-heading h3, .section-heading p { margin: 0; }
 .section-heading h3 { color: var(--app-text-strong); font-size: 14px; }
 .section-heading p { margin-top: 3px; color: var(--app-text); font-size: 12px; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .field { display: flex; min-width: 0; flex-direction: column; gap: 7px; color: var(--app-text-strong); font-size: 12px; font-weight: 600; }
 .field-wide { grid-column: 1 / -1; }
-.field input, .field select { width: 100%; height: 38px; box-sizing: border-box; padding: 0 11px; border: 1px solid var(--app-border); border-radius: 6px; outline: none; background: var(--app-surface); color: var(--app-text-strong); font: inherit; font-weight: 400; transition: border-color .16s, box-shadow .16s; }
+.field input, .field select { width: 100%; height: 38px; box-sizing: border-box; padding: 0 11px; border: 1px solid var(--app-border); border-radius: 10px; outline: none; background: var(--app-surface); color: var(--app-text-strong); font: inherit; font-weight: 400; transition: border-color .16s, box-shadow .16s; }
 .field input:focus, .field select:focus { border-color: #1677ff; box-shadow: 0 0 0 3px rgba(22, 119, 255, .12); }
 .field select:disabled { cursor: not-allowed; opacity: .6; }
 .single-field { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .node-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.node-option { min-width: 0; padding: 13px; border: 1px solid var(--app-border); border-radius: 7px; background: var(--app-surface); color: var(--app-text-strong); text-align: left; cursor: pointer; transition: border-color .16s, background .16s, box-shadow .16s; }
+.node-option { min-width: 0; padding: 13px; border: 1px solid var(--app-border); border-radius: var(--app-radius-control); background: var(--app-surface); color: var(--app-text-strong); text-align: left; cursor: pointer; transition: border-color .16s, background .16s, box-shadow .16s; }
 .node-option:hover:not(:disabled) { border-color: #1677ff; }
 .node-option.selected { border-color: #1677ff; background: rgba(22, 119, 255, .06); box-shadow: 0 0 0 2px rgba(22, 119, 255, .1); }
 .node-option.offline { cursor: not-allowed; opacity: .58; }
@@ -1002,13 +1010,15 @@ onMounted(() => {
 .node-protocols { flex-wrap: wrap; }
 .node-list-state { display: grid; min-height: 82px; place-items: center; border: 1px dashed var(--app-border); border-radius: 7px; color: var(--app-text); font-size: 12px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 24px; border-top: 1px solid var(--app-border); background: var(--app-surface); box-shadow: 0 -6px 16px rgba(20, 24, 31, .04); }
-:global(.semi-modal-content:has(.create-form)) { border-radius: 8px; background: var(--app-surface); }
+:global(.semi-modal-content:has(.create-form)) { display: flex; max-height: calc(100dvh - 48px); flex-direction: column; overflow: hidden; border-radius: var(--app-radius-panel); background: var(--app-surface); }
 :global(.semi-modal-content:has(.create-form) .semi-modal-header) { margin-bottom: 16px; }
-:global(.semi-modal:has(.create-form)) { width: 720px !important; max-width: calc(100vw - 24px); }
-:global(.semi-modal-content:has(.detail-modal)) { border-radius: 8px; background: var(--app-surface); }
+:global(.semi-modal-content:has(.create-form) .semi-modal-body) { display: flex; min-height: 0; flex: 1; overflow: hidden; }
+:global(.semi-modal:has(.create-form)) { top: 24px !important; width: 720px !important; max-width: calc(100vw - 48px); margin-top: 0 !important; }
+:global(.semi-modal-content:has(.detail-modal)) { display: flex; max-height: calc(100dvh - 48px); flex-direction: column; overflow: hidden; border-radius: var(--app-radius-panel); background: var(--app-surface); }
 :global(.semi-modal-content:has(.detail-modal) .semi-modal-header) { margin-bottom: 14px; }
-:global(.semi-modal:has(.detail-modal)) { width: 900px !important; max-width: calc(100vw - 24px); }
-:global(.tunnel-action-popup) { padding: 6px 0 !important; border: 1px solid var(--app-border); border-radius: 8px; background: var(--app-surface); box-shadow: 0 8px 24px rgba(20, 24, 31, .14); }
+:global(.semi-modal-content:has(.detail-modal) .semi-modal-body) { display: flex; min-height: 0; flex: 1; overflow: hidden; }
+:global(.semi-modal:has(.detail-modal)) { top: 24px !important; width: 900px !important; max-width: calc(100vw - 48px); margin-top: 0 !important; }
+:global(.tunnel-action-popup) { padding: 6px 0 !important; border: 1px solid var(--app-border); border-radius: var(--app-radius-panel); background: var(--app-surface); box-shadow: 0 8px 24px rgba(20, 24, 31, .14); }
 :global(.tunnel-action-popup .semi-dropdown-menu), :global(.tunnel-action-menu) { min-width: 138px; padding: 0; background: transparent; }
 :global(.tunnel-action-popup .semi-dropdown-item), :global(.tunnel-action-menu .semi-dropdown-item) { display: flex; height: 42px; box-sizing: border-box; align-items: center; gap: 12px; margin: 0; padding: 0 14px; border-radius: 0; color: var(--app-text-strong); font-size: 14px; line-height: 42px; white-space: nowrap; }
 :global(.tunnel-action-popup .semi-dropdown-item > .semi-icon), :global(.tunnel-action-menu .semi-dropdown-item > .semi-icon) { width: 17px; height: 17px; flex: 0 0 17px; font-size: 17px; }
@@ -1039,11 +1049,12 @@ onMounted(() => {
   .detail-actions > .tunnel-toggle-button { display: none; }
   .detail-tabs { padding: 0 16px; }
   .detail-error { margin-right: 16px; margin-left: 16px; }
-  .detail-content, .detail-settings { max-height: calc(100vh - 305px); padding: 18px 16px 22px; }
+  .detail-content, .detail-settings { padding: 18px 16px 22px; }
   .detail-table { grid-template-columns: 1fr; }
   .detail-table > div { grid-template-columns: 86px minmax(0, 1fr) auto; }
   .detail-savebar { bottom: -22px; margin-right: -16px; margin-bottom: -22px; margin-left: -16px; padding-right: 16px; padding-left: 16px; }
-  :global(.semi-modal:has(.detail-modal)) { top: 8px !important; margin-top: 0 !important; }
+  :global(.semi-modal:has(.create-form)), :global(.semi-modal:has(.detail-modal)) { top: 12px !important; max-width: calc(100vw - 24px); }
+  :global(.semi-modal-content:has(.create-form)), :global(.semi-modal-content:has(.detail-modal)) { max-height: calc(100dvh - 24px); }
   .form-grid, .single-field { grid-template-columns: 1fr; }
   .node-list { grid-template-columns: 1fr; }
   .field-wide { grid-column: auto; }

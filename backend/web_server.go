@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -206,7 +207,11 @@ func (s *WebServer) centerHandler(w http.ResponseWriter, r *http.Request) {
 	case "runner/data":
 		value, err = s.center.GetRunnerData(int64(queryInt(r, "tunnel_id", 0)))
 	case "runner/status":
-		value, err = s.center.GetRunnerRuntimeStatus()
+		if tunnelName := strings.TrimSpace(r.URL.Query().Get("tunnel")); tunnelName != "" {
+			value, err = s.center.GetTunnelRunnerRuntimeStatus(tunnelName)
+		} else {
+			value, err = s.center.GetRunnerRuntimeStatus()
+		}
 	case "traffic/daily":
 		value, err = s.center.GetTrafficDaily(queryInt(r, "days", 7))
 	case "tunnel/detail":
@@ -237,7 +242,20 @@ func (s *WebServer) centerHandler(w http.ResponseWriter, r *http.Request) {
 			methodNotAllowed(w)
 			return
 		}
-		value, err = s.center.StopRunner()
+		var input struct {
+			TunnelName string `json:"tunnel_name"`
+		}
+		err = json.NewDecoder(r.Body).Decode(&input)
+		if errors.Is(err, io.EOF) {
+			err = nil
+		}
+		if err == nil {
+			if strings.TrimSpace(input.TunnelName) == "" {
+				value, err = s.center.StopRunner()
+			} else {
+				value, err = s.center.StopTunnelRunner(input.TunnelName)
+			}
+		}
 	default:
 		http.NotFound(w, r)
 		return

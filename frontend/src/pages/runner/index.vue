@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { Banner, Button, Card, Tag } from "@kousum/semi-ui-vue";
 import { IconPlay, IconRefresh, IconStop, IconTerminal } from "@kousum/semi-icons-vue";
 import {
   getRunnerData,
   getRunnerRuntimeStatus,
+  getTunnelRunnerRuntimeStatus,
   getTunnelsOverview,
   startRunner,
-  stopRunner,
+  stopTunnelRunner,
   type RunnerRuntimeStatus,
 } from "@/services/center";
 import { useGlobalLoadingStore } from "@/stores/globalLoading";
@@ -17,6 +19,8 @@ defineOptions({
 });
 
 const errorMessage = ref("");
+const route = useRoute();
+const router = useRouter();
 const globalLoadingStore = useGlobalLoadingStore();
 const withGlobalLoading = <T>(task: () => Promise<T>) =>
   globalLoadingStore.withGlobalLoading(task);
@@ -82,6 +86,17 @@ const activeTunnels = computed(() => {
   }
   return tunnels.value.filter((tunnel) => activeTunnelNameSet.value.has(tunnel.name));
 });
+
+const requestedTunnelName = () => {
+  const queryValue = route.query.tunnel;
+  return (Array.isArray(queryValue) ? queryValue[0] : queryValue || "").trim();
+};
+
+const selectTunnel = async (tunnelName: string) => {
+  selectedTunnelName.value = tunnelName;
+  await router.replace({ query: { ...route.query, tunnel: tunnelName || undefined } });
+  await syncRuntimeStatus();
+};
 
 const joinHostPort = (host: string, port?: number | null) => {
   const normalizedHost = host.trim();
@@ -222,10 +237,17 @@ const loadRunnerData = async () => {
       });
       const currentTunnelName = runnerData.current_tunnel?.name || "";
       const tunnelNames = new Set(tunnels.value.map((item) => item.name));
-      if (!tunnelNames.has(selectedTunnelName.value)) {
+      const routeTunnelName = requestedTunnelName();
+      if (routeTunnelName && tunnelNames.has(routeTunnelName)) {
+        selectedTunnelName.value = routeTunnelName;
+      } else if (!tunnelNames.has(selectedTunnelName.value)) {
         selectedTunnelName.value = tunnelNames.has(currentTunnelName)
           ? currentTunnelName
           : (tunnels.value[0]?.name ?? "");
+      }
+
+      if (selectedTunnelName.value) {
+        runtimeStatus.value = await getTunnelRunnerRuntimeStatus(selectedTunnelName.value);
       }
 
       const currentNode = runnerData.current_tunnel
@@ -265,7 +287,9 @@ const syncRuntimeStatus = async () => {
   }
   runtimePolling.value = true;
   try {
-    const status = await getRunnerRuntimeStatus();
+    const status = selectedTunnelName.value
+      ? await getTunnelRunnerRuntimeStatus(selectedTunnelName.value)
+      : await getRunnerRuntimeStatus();
     runtimeStatus.value = status;
     const fallbackServer = summary.value.server;
     summary.value = {
@@ -310,7 +334,7 @@ const handleStopRunner = async () => {
   errorMessage.value = "";
   runningAction.value = true;
   try {
-    runtimeStatus.value = await stopRunner();
+    runtimeStatus.value = await stopTunnelRunner(selectedTunnelName.value);
     await loadRunnerData();
   } catch (error) {
     errorMessage.value =
@@ -326,6 +350,17 @@ onMounted(() => {
     void syncRuntimeStatus();
   }, 1200);
 });
+
+watch(
+  () => route.query.tunnel,
+  (queryValue) => {
+    const tunnelName = (Array.isArray(queryValue) ? queryValue[0] : queryValue || "").trim();
+    if (tunnelName && tunnelName !== selectedTunnelName.value) {
+      selectedTunnelName.value = tunnelName;
+      void syncRuntimeStatus();
+    }
+  },
+);
 
 onBeforeUnmount(() => {
   if (runtimePollTimer) {
@@ -384,7 +419,15 @@ onBeforeUnmount(() => {
       </Card>
 
       <Card class="runner-panel log-panel" :bordered="true" :body-style="{ padding: '0' }">
-        <div class="panel-heading log-heading"><div><h2>frpc 运行日志</h2><span>启动命令：{{ runtimeStatus.command || "-" }}</span></div></div>
+        <div class="panel-heading log-heading">
+          <div><h2>frpc 运行日志</h2><span>启动命令：{{ runtimeStatus.command || "-" }}</span></div>
+          <label class="log-tunnel-selector">
+            <span>隧道</span>
+            <select :value="selectedTunnelName" @change="selectTunnel(($event.target as HTMLSelectElement).value)">
+              <option v-for="tunnel in tunnels" :key="tunnel.name" :value="tunnel.name">{{ tunnel.remark }}</option>
+            </select>
+          </label>
+        </div>
         <div class="log-viewport"><pre class="log-text-mono" v-text="logText" /></div>
       </Card>
     </div>
@@ -392,7 +435,7 @@ onBeforeUnmount(() => {
 </template>
 <style scoped>
 .runner-page { display: flex; flex-direction: column; gap: 18px; }
-.runner-hero, .runner-panel { background: var(--app-surface); border-color: var(--app-border); }
+.runner-hero, .runner-panel { overflow: hidden; background: var(--app-surface); border-color: var(--app-border); border-radius: var(--app-radius-panel); }
 .runner-hero-content { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .runner-title, .runner-tags, .runner-actions { display: flex; align-items: center; gap: 8px; }
 .runner-title { color: var(--app-accent); }
@@ -405,18 +448,24 @@ onBeforeUnmount(() => {
 .panel-heading { display: flex; align-items: center; justify-content: space-between; min-height: 68px; padding: 0 20px; border-bottom: 1px solid var(--app-border); box-sizing: border-box; }
 .panel-heading h2 { margin: 0; color: var(--app-text-strong); font-size: 16px; }
 .tunnel-status-list { display: flex; flex-direction: column; gap: 10px; padding: 16px; }
-.tunnel-status-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px; border: 1px solid var(--app-border); border-radius: 6px; }
+.tunnel-status-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px; border: 1px solid var(--app-border); border-radius: var(--app-radius-control); }
 .tunnel-status-item div { min-width: 0; }
 .tunnel-status-item strong, .tunnel-status-item span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tunnel-status-item strong { color: var(--app-text-strong); font-size: 14px; }
 .tunnel-status-item span, .log-heading span { margin-top: 3px; color: var(--app-text); font-size: 11px; }
 .runner-empty { padding: 24px; color: var(--app-text); font-size: 13px; text-align: center; }
-.log-heading { justify-content: flex-start; }
+.log-heading { gap: 16px; }
+.log-tunnel-selector { display: flex; align-items: center; gap: 8px; color: var(--app-text); font-size: 12px; }
+.log-tunnel-selector select { min-width: 150px; height: 34px; padding: 0 30px 0 10px; border: 1px solid var(--app-border); border-radius: var(--app-radius-control); outline: none; background: var(--app-surface); color: var(--app-text-strong); }
+.log-tunnel-selector select:focus { border-color: var(--app-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent) 14%, transparent); }
 .log-viewport { height: 420px; overflow: auto; background: #101216; color: #d7dce2; }
 .log-text-mono { min-width: max-content; margin: 0; padding: 18px; font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
 @media (max-width: 900px) {
   .runner-hero-content { align-items: flex-start; flex-direction: column; }
   .runner-actions { justify-content: flex-start; }
   .runner-grid { grid-template-columns: 1fr; }
+  .log-heading { align-items: stretch; flex-direction: column; padding: 14px 16px; }
+  .log-tunnel-selector { justify-content: space-between; }
+  .log-tunnel-selector select { min-width: 0; flex: 1; }
 }
 </style>

@@ -5,12 +5,14 @@ type CenterServiceBinding = {
   GetNodes: () => Promise<any>;
   CreateTunnel: (input: CreateTunnelInput) => Promise<any>;
   GetRunnerRuntimeStatus: () => Promise<any>;
+  GetTunnelRunnerRuntimeStatus: (tunnelName: string) => Promise<any>;
   GetTunnelsOverview: (page: number, limit: number, days: number) => Promise<any>;
   GetRunnerData: (tunnelID: number) => Promise<any>;
   GetTunnelDetail: (tunnelName: string) => Promise<any>;
   UpdateTunnel: (tunnelName: string, input: UpdateTunnelInput) => Promise<any>;
   StartRunner: (tunnelNames: string[]) => Promise<RunnerRuntimeStatus>;
   StopRunner: () => Promise<any>;
+  StopTunnelRunner: (tunnelName: string) => Promise<any>;
   GetTrafficDaily: (days: number) => Promise<any>;
 };
 
@@ -314,6 +316,21 @@ export async function getRunnerRuntimeStatus(): Promise<RunnerRuntimeStatus> {
   }
 }
 
+export async function getTunnelRunnerRuntimeStatus(
+  tunnelName: string,
+): Promise<RunnerRuntimeStatus> {
+  try {
+    const svc = getCenterServiceBinding();
+    return svc
+      ? (await svc.GetTunnelRunnerRuntimeStatus(tunnelName)) as RunnerRuntimeStatus
+      : await apiRequest<RunnerRuntimeStatus>(
+          `/api/center/runner/status?tunnel=${encodeURIComponent(tunnelName)}`,
+        );
+  } catch (error) {
+    throw parseError(error);
+  }
+}
+
 export async function startRunner(
   tunnelNames: string | string[] = [],
 ): Promise<RunnerRuntimeStatus> {
@@ -341,6 +358,22 @@ export async function stopRunner(): Promise<RunnerRuntimeStatus> {
     return svc
       ? (await svc.StopRunner()) as RunnerRuntimeStatus
       : await apiRequest<RunnerRuntimeStatus>("/api/center/runner/stop", { method: "POST" });
+  } catch (error) {
+    throw parseError(error);
+  }
+}
+
+export async function stopTunnelRunner(
+  tunnelName: string,
+): Promise<RunnerRuntimeStatus> {
+  try {
+    const svc = getCenterServiceBinding();
+    return svc
+      ? (await svc.StopTunnelRunner(tunnelName)) as RunnerRuntimeStatus
+      : await apiRequest<RunnerRuntimeStatus>("/api/center/runner/stop", {
+          method: "POST",
+          body: JSON.stringify({ tunnel_name: tunnelName }),
+        });
   } catch (error) {
     throw parseError(error);
   }
