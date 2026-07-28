@@ -1,25 +1,33 @@
 <script lang="ts" setup>
+import { computed } from "vue";
+import { useRoute } from "vue-router";
 import AppHeader from "./components/AppHeader.vue";
+import AppSidebar from "./components/AppSidebar.vue";
 import FloatingActionButton from "./components/FloatingActionButton.vue";
 import { useGlobalLoadingStore } from "@/stores/globalLoading";
 
 const globalLoadingStore = useGlobalLoadingStore();
+const route = useRoute();
+const showNavigation = computed(() => route.path !== "/oauth");
 </script>
 
 <template>
   <div class="app-shell">
     <AppHeader style="--wails-draggable: drag" />
     <div v-if="globalLoadingStore.isLoading" class="app-global-loading-bar" />
-    <main class="app-content-scroll">
-      <router-view v-slot="{ Component, route }">
-        <transition name="fade" mode="out-in">
-          <div :key="route.name" class="app-page-wrap">
-            <component :is="Component" />
-          </div>
-        </transition>
-      </router-view>
-    </main>
-    <FloatingActionButton />
+    <div class="app-workspace" :class="{ 'app-workspace--auth': !showNavigation }">
+      <AppSidebar v-if="showNavigation" />
+      <main class="app-content-scroll">
+        <router-view v-slot="{ Component, route: currentRoute }">
+          <transition name="fade" mode="out-in">
+            <div :key="currentRoute.name" class="app-page-wrap">
+              <component :is="Component" />
+            </div>
+          </transition>
+        </router-view>
+      </main>
+    </div>
+    <FloatingActionButton v-if="showNavigation" />
   </div>
 </template>
 
@@ -34,8 +42,12 @@ const globalLoadingStore = useGlobalLoadingStore();
   opacity: 0;
 }
 
+.app-workspace { display: flex; height: calc(100vh - 48px); min-height: 0; }
+.app-workspace--auth { display: block; }
 .app-content-scroll {
-  height: calc(100vh - 58px);
+  min-width: 0;
+  height: 100%;
+  flex: 1;
   overflow-y: auto;
 }
 
@@ -52,7 +64,7 @@ const globalLoadingStore = useGlobalLoadingStore();
   position: fixed;
   left: 0;
   right: 0;
-  top: 58px;
+  top: 48px;
   height: 2px;
   overflow: hidden;
   background: color-mix(in srgb, var(--app-accent) 22%, transparent);
@@ -76,5 +88,8 @@ const globalLoadingStore = useGlobalLoadingStore();
 
 @media (max-width: 700px) {
   .app-page-wrap { padding: 16px; }
+}
+@media (max-width: 640px) {
+  .app-workspace:not(.app-workspace--auth) .app-content-scroll { padding-bottom: 58px; }
 }
 </style>
