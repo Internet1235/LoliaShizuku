@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import ViteFonts from "unplugin-fonts/vite";
+import Icons from "unplugin-icons/vite";
 import path from "path";
 
 // https://vitejs.dev/config/
@@ -12,6 +13,7 @@ export default defineConfig({
   },
   plugins: [
     vue(),
+    Icons({ compiler: "vue3" }),
     ViteFonts({
       fontsource: {
         families: [

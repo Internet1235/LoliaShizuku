@@ -189,8 +189,19 @@ func (s *WebServer) centerHandler(w http.ResponseWriter, r *http.Request) {
 	switch path {
 	case "dashboard":
 		value, err = s.center.GetDashboard()
+	case "nodes":
+		value, err = s.center.GetNodes()
 	case "tunnels":
 		value, err = s.center.GetTunnelsOverview(queryInt(r, "page", 1), queryInt(r, "limit", 50), queryInt(r, "days", 2))
+	case "tunnel/create":
+		if r.Method != http.MethodPost {
+			methodNotAllowed(w)
+			return
+		}
+		var input models.CreateTunnelInput
+		if err = json.NewDecoder(r.Body).Decode(&input); err == nil {
+			value, err = s.center.CreateTunnel(input)
+		}
 	case "runner/data":
 		value, err = s.center.GetRunnerData(int64(queryInt(r, "tunnel_id", 0)))
 	case "runner/status":
@@ -198,7 +209,17 @@ func (s *WebServer) centerHandler(w http.ResponseWriter, r *http.Request) {
 	case "traffic/daily":
 		value, err = s.center.GetTrafficDaily(queryInt(r, "days", 7))
 	case "tunnel/detail":
-		value, err = s.center.GetTunnelDetail(r.URL.Query().Get("name"))
+		if r.Method == http.MethodPut {
+			var input models.UpdateTunnelInput
+			if err = json.NewDecoder(r.Body).Decode(&input); err == nil {
+				value, err = s.center.UpdateTunnel(r.URL.Query().Get("name"), input)
+			}
+		} else if r.Method == http.MethodGet {
+			value, err = s.center.GetTunnelDetail(r.URL.Query().Get("name"))
+		} else {
+			methodNotAllowed(w)
+			return
+		}
 	case "runner/start":
 		if r.Method != http.MethodPost {
 			methodNotAllowed(w)

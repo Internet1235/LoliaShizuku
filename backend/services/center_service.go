@@ -459,6 +459,38 @@ func (s *CenterService) GetUserTunnels(page, limit int) (*models.TunnelListData,
 	return s.api.GetUserTunnels(context.Background(), page, limit)
 }
 
+func (s *CenterService) CreateTunnel(input models.CreateTunnelInput) (*models.CreateTunnelResult, error) {
+	input.Type = strings.ToLower(strings.TrimSpace(input.Type))
+	input.LocalIP = strings.TrimSpace(input.LocalIP)
+	input.CustomDomain = strings.TrimSpace(input.CustomDomain)
+	input.Remark = strings.TrimSpace(input.Remark)
+	if input.NodeID <= 0 {
+		return nil, fmt.Errorf("请选择节点")
+	}
+	if input.Type != "tcp" && input.Type != "udp" && input.Type != "http" && input.Type != "https" {
+		return nil, fmt.Errorf("不支持的隧道协议")
+	}
+	if input.LocalIP == "" {
+		return nil, fmt.Errorf("请填写本地 IP")
+	}
+	if input.LocalPort < 1 || input.LocalPort > 65535 {
+		return nil, fmt.Errorf("本地端口必须在 1 到 65535 之间")
+	}
+	if (input.Type == "tcp" || input.Type == "udp") && (input.RemotePort < 1 || input.RemotePort > 65535) {
+		return nil, fmt.Errorf("远程端口必须在 1 到 65535 之间")
+	}
+	if (input.Type == "http" || input.Type == "https") && input.CustomDomain == "" {
+		return nil, fmt.Errorf("请填写自定义域名")
+	}
+	if input.Remark == "" {
+		return nil, fmt.Errorf("请填写隧道备注")
+	}
+	if err := s.api.CreateTunnel(context.Background(), input); err != nil {
+		return nil, err
+	}
+	return &models.CreateTunnelResult{Created: true}, nil
+}
+
 func (s *CenterService) GetTrafficTunnels(days int) (*models.TrafficTunnelData, error) {
 	return s.api.GetTrafficTunnels(context.Background(), days)
 }
@@ -480,6 +512,37 @@ func (s *CenterService) GetFrpcConfig(tunnel string) (*models.FrpcConfigData, er
 
 func (s *CenterService) GetTunnelDetail(tunnelName string) (*models.TunnelDetailData, error) {
 	return s.api.GetTunnelDetail(context.Background(), tunnelName)
+}
+
+func (s *CenterService) UpdateTunnel(tunnelName string, input models.UpdateTunnelInput) (*models.UpdateTunnelResult, error) {
+	tunnelName = strings.TrimSpace(tunnelName)
+	input.LocalIP = strings.TrimSpace(input.LocalIP)
+	input.CustomDomain = strings.TrimSpace(input.CustomDomain)
+	input.Remark = strings.TrimSpace(input.Remark)
+	input.Config.Protocol = strings.ToLower(strings.TrimSpace(input.Config.Protocol))
+	input.Config.ProxyProtocolVersion = strings.ToLower(strings.TrimSpace(input.Config.ProxyProtocolVersion))
+	if tunnelName == "" {
+		return nil, fmt.Errorf("缺少隧道名称")
+	}
+	if input.LocalIP == "" {
+		return nil, fmt.Errorf("请填写本地 IP")
+	}
+	if input.LocalPort < 1 || input.LocalPort > 65535 {
+		return nil, fmt.Errorf("本地端口必须在 1 到 65535 之间")
+	}
+	if input.Remark == "" {
+		return nil, fmt.Errorf("请填写隧道备注")
+	}
+	if input.Config.Protocol != "tcp" && input.Config.Protocol != "udp" && input.Config.Protocol != "http" && input.Config.Protocol != "https" {
+		return nil, fmt.Errorf("不支持的隧道协议")
+	}
+	if (input.Config.Protocol == "http" || input.Config.Protocol == "https") && input.CustomDomain == "" {
+		return nil, fmt.Errorf("请填写自定义域名")
+	}
+	if input.Config.ProxyProtocolVersion != "" && input.Config.ProxyProtocolVersion != "v1" && input.Config.ProxyProtocolVersion != "v2" {
+		return nil, fmt.Errorf("Proxy Protocol 版本必须为 v1 或 v2")
+	}
+	return s.api.UpdateTunnel(context.Background(), tunnelName, input)
 }
 
 func (s *CenterService) GetClientVersion() (*models.AppVersionInfo, error) {

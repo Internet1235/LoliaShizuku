@@ -17,13 +17,14 @@ body {
   --app-bg: #f5f6f8;
   --app-surface: #ffffff;
   --app-surface-muted: #f7f8fa;
+  --app-nav-active: #fcfcfd;
   --app-border: #e5e7eb;
   --app-text: #68707d;
   --app-text-strong: #1f242d;
-  --app-accent: #e85283;
-  --semi-color-primary: #e85283;
-  --semi-color-primary-hover: #d94275;
-  --semi-color-primary-active: #c93667;
+  --app-accent: #1677ff;
+  --semi-color-primary: #1677ff;
+  --semi-color-primary-hover: #0f68e8;
+  --semi-color-primary-active: #0b5ccc;
 }
 
 body[theme-mode="dark"] {
@@ -31,13 +32,14 @@ body[theme-mode="dark"] {
   --app-bg: #141619;
   --app-surface: #1d2025;
   --app-surface-muted: #24282e;
+  --app-nav-active: #30343a;
   --app-border: #343941;
   --app-text: #a8afb9;
   --app-text-strong: #eef0f3;
-  --app-accent: #f178a1;
-  --semi-color-primary: #f178a1;
-  --semi-color-primary-hover: #f48bad;
-  --semi-color-primary-active: #dc628b;
+  --app-accent: #1677ff;
+  --semi-color-primary: #1677ff;
+  --semi-color-primary-hover: #3c8cff;
+  --semi-color-primary-active: #0f68e8;
 }
 
 body {

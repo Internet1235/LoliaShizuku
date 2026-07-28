@@ -1,33 +1,66 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, h, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
-import { Banner, Button, Card, Empty, Input, Tag } from "@kousum/semi-ui-vue";
+import { Banner, Button, Dropdown, Empty, Input, Modal, Tag, type DropDownMenuItem } from "@kousum/semi-ui-vue";
+import IconArrowDown from "~icons/lucide/arrow-down";
+import IconArrowUp from "~icons/lucide/arrow-up";
+import IconCheckCircleStroked from "~icons/lucide/circle-check";
+import IconCopy from "~icons/lucide/copy";
+import IconEdit from "~icons/lucide/pencil";
+import IconFile from "~icons/lucide/file-text";
+import IconGlobe from "~icons/lucide/globe-2";
+import IconInfoCircle from "~icons/lucide/info";
+import IconMapPin from "~icons/lucide/map-pin";
+import IconMore from "~icons/lucide/ellipsis-vertical";
+import IconPlay from "~icons/lucide/play";
+import IconPower from "~icons/lucide/power";
+import IconPlus from "~icons/lucide/plus";
+import IconRefresh from "~icons/lucide/refresh-cw";
+import IconRestart from "~icons/lucide/rotate-cw";
+import IconSave from "~icons/lucide/save";
+import IconSearch from "~icons/lucide/search";
+import IconServer from "~icons/lucide/server";
 import {
-  IconArrowDown,
-  IconArrowUp,
-  IconExternalOpen,
-  IconPlay,
-  IconRefresh,
-  IconSearch,
-  IconServer,
-} from "@kousum/semi-icons-vue";
-import {
+  createTunnel,
+  getNodes,
   getRunnerRuntimeStatus,
+  getTunnelDetail,
   getTunnelsOverview,
   startRunner,
+  stopRunner,
+  updateTunnel,
+  type CreateTunnelInput,
+  type NodeItem,
   type RunnerRuntimeStatus,
+  type TunnelDetailData,
   type TunnelOverviewItem,
+  type UpdateTunnelInput,
 } from "@/services/center";
 import { useGlobalLoadingStore } from "@/stores/globalLoading";
-import { openExternalURL } from "@/services/platform";
+import AppLogo from "@/components/AppLogo.vue";
 
 defineOptions({
   name: "TunnelsPage",
 });
 
 const errorMessage = ref("");
+const successMessage = ref("");
 const searchQuery = ref("");
 const tunnels = ref<TunnelOverviewItem[]>([]);
+const nodes = ref<NodeItem[]>([]);
+const createModalVisible = ref(false);
+const loadingNodes = ref(false);
+const creatingTunnel = ref(false);
+const createError = ref("");
+const createForm = reactive<CreateTunnelInput>({
+  node_id: 0,
+  type: "tcp",
+  local_ip: "127.0.0.1",
+  local_port: 0,
+  remote_port: 0,
+  custom_domain: "",
+  remark: "",
+});
 const globalLoadingStore = useGlobalLoadingStore();
 const withGlobalLoading = <T,>(task: () => Promise<T>) =>
   globalLoadingStore.withGlobalLoading(task);
@@ -43,6 +76,24 @@ const runnerStatus = ref<RunnerRuntimeStatus>({
   log_lines: [],
 });
 const startingTunnelName = ref("");
+const actionMenuKey = ref("");
+const detailModalVisible = ref(false);
+const detailLoading = ref(false);
+const detailSaving = ref(false);
+const detailError = ref("");
+const detailTab = ref<"overview" | "settings">("overview");
+const tunnelDetail = ref<TunnelDetailData | null>(null);
+const detailForm = reactive<UpdateTunnelInput>({
+  local_ip: "",
+  local_port: 0,
+  custom_domain: "",
+  remark: "",
+  config: {
+    auto_tls: false,
+    proxy_protocol_version: "",
+    protocol: "tcp",
+  },
+});
 
 const filteredTunnels = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase();
@@ -67,6 +118,137 @@ const filteredTunnels = computed(() => {
   });
 });
 const isRunnerRunning = computed(() => runnerStatus.value.running);
+const isWebProtocol = computed(() => ["http", "https"].includes(createForm.type));
+const availableNodes = computed(() => nodes.value.filter((node) => {
+  const protocols = node.supported_protocols ?? [];
+  return protocols.length === 0 || protocols.some(
+    (protocol) => protocol.toLowerCase() === createForm.type,
+  );
+}));
+const isNodeOnline = (node: NodeItem) => ["online", "active"].includes(node.status.toLowerCase());
+const selectedNode = computed(() => nodes.value.find((node) => node.id === createForm.node_id));
+const isDetailWebProtocol = computed(() => ["http", "https"].includes(detailForm.config.protocol));
+
+const toggleActionMenu = (menuKey: string) => {
+  actionMenuKey.value = actionMenuKey.value === menuKey ? "" : menuKey;
+};
+
+const closeActionMenu = () => {
+  actionMenuKey.value = "";
+};
+
+const handleActionMenuVisibleChange = (menuKey: string, visible: boolean) => {
+  if (visible) {
+    actionMenuKey.value = menuKey;
+  } else if (actionMenuKey.value === menuKey) {
+    actionMenuKey.value = "";
+  }
+};
+
+const resetCreateForm = () => {
+  Object.assign(createForm, {
+    node_id: 0,
+    type: "tcp",
+    local_ip: "127.0.0.1",
+    local_port: 0,
+    remote_port: 0,
+    custom_domain: "",
+    remark: "",
+  });
+  createError.value = "";
+};
+
+const selectFirstAvailableNode = () => {
+  if (!availableNodes.value.some((node) => node.id === createForm.node_id && isNodeOnline(node))) {
+    createForm.node_id = availableNodes.value.find(isNodeOnline)?.id ?? 0;
+  }
+};
+
+const selectNode = (node: NodeItem) => {
+  if (isNodeOnline(node)) {
+    createForm.node_id = node.id;
+    createError.value = "";
+  }
+};
+
+const formatNodeLoad = (load: number) => {
+  if (!Number.isFinite(load)) return "未知";
+  return `${Math.max(0, load).toFixed(1)}%`;
+};
+
+const handleProtocolChange = (event: Event) => {
+  createForm.type = (event.target as HTMLSelectElement).value;
+  if (isWebProtocol.value) {
+    createForm.remote_port = 0;
+  } else {
+    createForm.custom_domain = "";
+  }
+  selectFirstAvailableNode();
+};
+
+const openCreateModal = async () => {
+  resetCreateForm();
+  successMessage.value = "";
+  createModalVisible.value = true;
+  if (nodes.value.length > 0) {
+    selectFirstAvailableNode();
+    return;
+  }
+
+  loadingNodes.value = true;
+  try {
+    const response = await getNodes();
+    nodes.value = response.nodes ?? [];
+    selectFirstAvailableNode();
+  } catch (error) {
+    createError.value = error instanceof Error ? error.message : "加载节点失败，请稍后重试";
+  } finally {
+    loadingNodes.value = false;
+  }
+};
+
+const closeCreateModal = () => {
+  if (!creatingTunnel.value) {
+    createModalVisible.value = false;
+  }
+};
+
+const validateCreateForm = () => {
+  if (createForm.node_id <= 0) return "请选择可用节点";
+  if (!createForm.remark.trim()) return "请填写隧道备注";
+  if (!createForm.local_ip.trim()) return "请填写本地 IP";
+  if (!Number.isInteger(createForm.local_port) || createForm.local_port < 1 || createForm.local_port > 65535) {
+    return "本地端口必须是 1 到 65535 之间的整数";
+  }
+  if (!isWebProtocol.value && (!Number.isInteger(createForm.remote_port) || createForm.remote_port < 1 || createForm.remote_port > 65535)) {
+    return "远程端口必须是 1 到 65535 之间的整数";
+  }
+  if (isWebProtocol.value && !createForm.custom_domain.trim()) return "请填写自定义域名";
+  return "";
+};
+
+const handleCreateTunnel = async () => {
+  createError.value = validateCreateForm();
+  if (createError.value) return;
+
+  creatingTunnel.value = true;
+  try {
+    await createTunnel({
+      ...createForm,
+      local_ip: createForm.local_ip.trim(),
+      custom_domain: isWebProtocol.value ? createForm.custom_domain.trim() : "",
+      remark: createForm.remark.trim(),
+      remote_port: isWebProtocol.value ? 0 : createForm.remote_port,
+    });
+    createModalVisible.value = false;
+    successMessage.value = "隧道创建成功";
+    await loadTunnels();
+  } catch (error) {
+    createError.value = error instanceof Error ? error.message : "创建隧道失败，请稍后重试";
+  } finally {
+    creatingTunnel.value = false;
+  }
+};
 
 const loadTunnels = async () => {
   errorMessage.value = "";
@@ -140,22 +322,110 @@ const getTunnelTarget = (tunnel: TunnelOverviewItem) => {
   return "-";
 };
 
-const openTunnelDetail = (name: string) => {
-  const tunnelName = name.trim();
-  if (!tunnelName) {
-    return;
-  }
-  openExternalURL(
-    `https://dash.lolia.link/dash/tunnel/${encodeURIComponent(tunnelName)}`,
-  );
+const fillDetailForm = (detail: TunnelDetailData) => {
+  Object.assign(detailForm, {
+    local_ip: detail.local_ip,
+    local_port: detail.local_port,
+    custom_domain: detail.custom_domain || "",
+    remark: detail.remark,
+    config: {
+      auto_tls: detail.auto_tls,
+      proxy_protocol_version: "",
+      protocol: detail.type.toLowerCase(),
+    },
+  });
 };
 
-const isStartedTunnel = (tunnelName: string) =>
-  isRunnerRunning.value &&
-  ((runnerStatus.value.tunnel_names ?? []).some(
-    (currentTunnelName) => currentTunnelName.trim() === tunnelName.trim(),
-  ) ||
-    (runnerStatus.value.tunnel_name || "").trim() === tunnelName.trim());
+const openTunnelDetail = async (name: string) => {
+  const tunnelName = name.trim();
+  if (!tunnelName) return;
+
+  detailModalVisible.value = true;
+  detailLoading.value = true;
+  detailError.value = "";
+  detailTab.value = "overview";
+  tunnelDetail.value = null;
+  try {
+    const detail = await getTunnelDetail(tunnelName);
+    tunnelDetail.value = detail;
+    fillDetailForm(detail);
+  } catch (error) {
+    detailError.value = error instanceof Error ? error.message : "加载隧道详情失败";
+  } finally {
+    detailLoading.value = false;
+  }
+};
+
+const closeDetailModal = () => {
+  if (!detailSaving.value) detailModalVisible.value = false;
+};
+
+const copyText = async (value: string, label: string) => {
+  if (!value) return;
+  try {
+    await navigator.clipboard.writeText(value);
+    successMessage.value = `${label}已复制`;
+  } catch {
+    detailError.value = "复制失败，请手动选择文本";
+  }
+};
+
+const formatDateTime = (value: string) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN", { hour12: false });
+};
+
+const validateDetailForm = () => {
+  if (!detailForm.remark.trim()) return "请填写隧道备注";
+  if (!detailForm.local_ip.trim()) return "请填写本地 IP";
+  if (!Number.isInteger(detailForm.local_port) || detailForm.local_port < 1 || detailForm.local_port > 65535) {
+    return "本地端口必须是 1 到 65535 之间的整数";
+  }
+  if (isDetailWebProtocol.value && !detailForm.custom_domain.trim()) return "请填写自定义域名";
+  return "";
+};
+
+const handleUpdateTunnel = async () => {
+  if (!tunnelDetail.value) return;
+  detailError.value = validateDetailForm();
+  if (detailError.value) return;
+
+  detailSaving.value = true;
+  try {
+    await updateTunnel(tunnelDetail.value.name, {
+      local_ip: detailForm.local_ip.trim(),
+      local_port: detailForm.local_port,
+      custom_domain: isDetailWebProtocol.value ? detailForm.custom_domain.trim() : "",
+      remark: detailForm.remark.trim(),
+      config: { ...detailForm.config },
+    });
+    const detail = await getTunnelDetail(tunnelDetail.value.name);
+    tunnelDetail.value = detail;
+    fillDetailForm(detail);
+    await loadTunnels();
+    successMessage.value = "隧道设置已保存";
+    detailTab.value = "overview";
+  } catch (error) {
+    detailError.value = error instanceof Error ? error.message : "保存隧道设置失败";
+  } finally {
+    detailSaving.value = false;
+  }
+};
+
+const isStartedTunnel = (tunnelName: string) => {
+  const normalizedName = tunnelName.trim();
+  const isRunningLocally = isRunnerRunning.value &&
+    ((runnerStatus.value.tunnel_names ?? []).some(
+      (currentTunnelName) => currentTunnelName.trim() === normalizedName,
+    ) ||
+      (runnerStatus.value.tunnel_name || "").trim() === normalizedName);
+  const tunnelStatus = tunnels.value.find(
+    (tunnel) => tunnel.name.trim() === normalizedName,
+  )?.status ?? (tunnelDetail.value?.name.trim() === normalizedName ? tunnelDetail.value.status : "");
+
+  return isRunningLocally || tunnelStatus.toLowerCase() === "active";
+};
 
 const handleStartTunnel = async (tunnelName: string) => {
   errorMessage.value = "";
@@ -172,91 +442,195 @@ const handleStartTunnel = async (tunnelName: string) => {
   }
 };
 
+const handleStopTunnel = async (tunnelName: string) => {
+  closeActionMenu();
+  errorMessage.value = "";
+  startingTunnelName.value = tunnelName;
+  try {
+    runnerStatus.value = await stopRunner();
+    await loadTunnels();
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : "停止隧道失败，请稍后重试";
+  } finally {
+    startingTunnelName.value = "";
+  }
+};
+
+const handleToggleTunnel = async (tunnelName: string) => {
+  if (isStartedTunnel(tunnelName)) {
+    await handleStopTunnel(tunnelName);
+  } else {
+    await handleStartTunnel(tunnelName);
+  }
+};
+
+const handleRestartTunnel = async (tunnelName: string) => {
+  closeActionMenu();
+  errorMessage.value = "";
+  startingTunnelName.value = tunnelName;
+  try {
+    if (isRunnerRunning.value) {
+      await stopRunner();
+    }
+    runnerStatus.value = await startRunner([tunnelName]);
+    await loadTunnels();
+    await router.push("/runner");
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : "重启隧道失败，请稍后重试";
+  } finally {
+    startingTunnelName.value = "";
+  }
+};
+
+const openRunnerView = async (tunnelName: string) => {
+  closeActionMenu();
+  await router.push({ path: "/runner", query: { tunnel: tunnelName } });
+};
+
+const getTunnelActionMenu = (tunnel: TunnelOverviewItem): DropDownMenuItem[] => [
+  {
+    node: "item",
+    className: isStartedTunnel(tunnel.name) ? "tunnel-restart-action" : "mobile-tunnel-action",
+    name: isStartedTunnel(tunnel.name) ? "重启" : "启动",
+    icon: h(isStartedTunnel(tunnel.name) ? IconRestart : IconPlay),
+    onClick: () => void (isStartedTunnel(tunnel.name) ? handleRestartTunnel(tunnel.name) : handleStartTunnel(tunnel.name)),
+  },
+  ...(isStartedTunnel(tunnel.name) ? [{
+    node: "item" as const,
+    className: "mobile-tunnel-action",
+    name: "停止",
+    icon: h(IconPower),
+    onClick: () => void handleStopTunnel(tunnel.name),
+  }] : []),
+  { node: "item", name: "详情", icon: h(IconInfoCircle), onClick: () => { closeActionMenu(); void openTunnelDetail(tunnel.name); } },
+  { node: "item", name: "运行日志", icon: h(IconFile), onClick: () => void openRunnerView(tunnel.name) },
+];
+
 onMounted(() => {
   void loadTunnels();
 });
+
 </script>
 
 <template>
   <div class="tunnels-page">
     <Banner v-if="errorMessage" type="danger" :description="errorMessage" />
+    <Banner v-if="successMessage" type="success" :description="successMessage" />
 
-    <Card class="toolbar-card" :bordered="true">
+    <header class="page-heading">
+      <div>
+        <h1>隧道</h1>
+        <p>管理本地服务与公网节点之间的转发连接</p>
+      </div>
       <div class="tunnel-toolbar">
         <Input
           :value="searchQuery"
-          placeholder="搜索名称、节点、地址或端口"
+          placeholder="搜索隧道"
           show-clear
-          size="large"
           @change="(value) => searchQuery = String(value)"
         >
           <template #prefix><IconSearch style="font-size: 17px" /></template>
         </Input>
-        <Button theme="light" type="primary" size="large" @click="loadTunnels">
-          <IconRefresh style="font-size: 17px" />
-          刷新
-        </Button>
+        <div class="toolbar-actions">
+          <Button theme="light" type="tertiary" @click="loadTunnels">
+            <IconRefresh style="font-size: 17px" />
+            刷新
+          </Button>
+          <Button theme="solid" type="primary" @click="openCreateModal">
+            <IconPlus style="font-size: 17px" />
+            新增
+          </Button>
+        </div>
       </div>
-    </Card>
+    </header>
 
-    <div v-if="filteredTunnels.length" class="tunnel-grid">
-      <Card
+    <div v-if="filteredTunnels.length" class="tunnel-list">
+      <article
         v-for="tunnel in filteredTunnels"
         :key="tunnel.id"
-        class="tunnel-card"
-        :bordered="true"
-        :body-style="{ padding: '0' }"
+        class="tunnel-row"
+        tabindex="0"
+        role="button"
+        @click="openTunnelDetail(tunnel.name)"
+        @keydown.enter="openTunnelDetail(tunnel.name)"
       >
-        <div class="tunnel-card-body">
-          <div class="tunnel-title-row">
-            <h2 :title="tunnel.remark">{{ tunnel.remark }}</h2>
+        <div class="protocol-mark" :class="`protocol-${tunnel.type.toLowerCase()}`">
+          <AppLogo :size="23" />
+          <span>{{ tunnel.type.toUpperCase() }}</span>
+        </div>
+
+        <div class="tunnel-primary">
+          <div class="tunnel-name-line">
+            <strong :title="tunnel.remark">{{ tunnel.remark || tunnel.name }}</strong>
             <Tag :color="getStatusColor(tunnel.status)" type="light" size="small">
               {{ getStatusText(tunnel.status) }}
             </Tag>
           </div>
-
-          <div class="tunnel-addresses">
-            <div>
-              <span>本地</span>
-              <code>{{ tunnel.local_ip }}:{{ tunnel.local_port }}</code>
-            </div>
-            <div>
-              <span>目标</span>
-              <code :title="getTunnelTarget(tunnel)">{{ getTunnelTarget(tunnel) }}</code>
-            </div>
-          </div>
-
-          <div class="tunnel-tags">
-            <Tag color="blue" type="light" size="small">{{ tunnel.type.toUpperCase() }}</Tag>
-            <Tag color="grey" type="light" size="small"><IconServer style="font-size: 12px" /> {{ tunnel.node_name }}</Tag>
-          </div>
-
-          <div class="traffic-meta">
-            <span><IconArrowDown style="font-size: 13px" />{{ formatBytes(Number(tunnel.total_in ?? 0)) }}</span>
-            <span><IconArrowUp style="font-size: 13px" />{{ formatBytes(Number(tunnel.total_out ?? 0)) }}</span>
-          </div>
+          <span class="tunnel-identity">{{ tunnel.name }}</span>
         </div>
 
-        <div class="tunnel-actions">
+        <div class="row-field row-node">
+          <span>节点</span>
+          <strong><IconServer style="font-size: 14px" />{{ tunnel.node_name || `#${tunnel.node_id}` }}</strong>
+        </div>
+
+        <div class="row-field row-address">
+          <span>本地服务</span>
+          <code>{{ tunnel.local_ip }}:{{ tunnel.local_port }}</code>
+        </div>
+
+        <div class="row-field row-address">
+          <span>公网地址</span>
+          <code :title="getTunnelTarget(tunnel)">{{ getTunnelTarget(tunnel) }}</code>
+        </div>
+
+        <div class="traffic-meta">
+          <span><IconArrowDown style="font-size: 13px" />{{ formatBytes(Number(tunnel.total_in ?? 0)) }}</span>
+          <span><IconArrowUp style="font-size: 13px" />{{ formatBytes(Number(tunnel.total_out ?? 0)) }}</span>
+        </div>
+
+        <div class="tunnel-actions" @click.stop>
           <Button
+            class="tunnel-toggle-button"
             theme="light"
-            type="primary"
+            :type="isStartedTunnel(tunnel.name) ? 'tertiary' : 'primary'"
             size="small"
             :loading="startingTunnelName === tunnel.name"
-            :disabled="!!startingTunnelName || isStartedTunnel(tunnel.name)"
-            @click="handleStartTunnel(tunnel.name)"
+            :disabled="!!startingTunnelName"
+            :aria-label="isStartedTunnel(tunnel.name) ? '停止隧道' : '启动隧道'"
+            :title="isStartedTunnel(tunnel.name) ? '停止隧道' : '启动隧道'"
+            @click="handleToggleTunnel(tunnel.name)"
           >
-            <IconPlay style="font-size: 14px" />
-            {{ isStartedTunnel(tunnel.name) ? "已启动" : "启动" }}
+            <IconPower v-if="isStartedTunnel(tunnel.name)" style="font-size: 17px" />
+            <IconPlay v-else style="font-size: 17px" />
           </Button>
-          <Button theme="borderless" type="tertiary" size="small" @click="openTunnelDetail(tunnel.name)">
-            <IconExternalOpen style="font-size: 14px" />详情
-          </Button>
+          <Dropdown
+            trigger="hover"
+            position="bottomRight"
+            :visible="actionMenuKey === `list:${tunnel.name}`"
+            :menu="getTunnelActionMenu(tunnel)"
+            :mouse-enter-delay="0"
+            :mouse-leave-delay="120"
+            content-class-name="tunnel-action-popup"
+            @visible-change="handleActionMenuVisibleChange(`list:${tunnel.name}`, $event)"
+          >
+            <Button
+              class="more-action-button"
+              theme="borderless"
+              type="tertiary"
+              size="small"
+              aria-label="隧道操作"
+              @click.stop="toggleActionMenu(`list:${tunnel.name}`)"
+            >
+              <IconMore style="font-size: 18px" />
+            </Button>
+          </Dropdown>
         </div>
-      </Card>
+      </article>
+      <footer class="list-summary">共 {{ filteredTunnels.length }} 个隧道</footer>
     </div>
 
-    <Card v-else class="empty-card" :bordered="true">
+    <div v-else class="empty-card">
       <Empty title="暂无可展示的隧道" description="请刷新列表或调整搜索条件">
         <template #footer>
           <Button theme="light" type="primary" @click="loadTunnels">
@@ -264,34 +638,418 @@ onMounted(() => {
           </Button>
         </template>
       </Empty>
-    </Card>
+    </div>
+
+    <Modal
+      :visible="detailModalVisible"
+      :footer="null"
+      :mask-closable="!detailSaving"
+      title="隧道详情"
+      :width="900"
+      :body-style="{ padding: '0' }"
+      @cancel="closeDetailModal"
+    >
+      <div class="detail-modal">
+        <div v-if="detailLoading" class="detail-state">正在加载隧道详情...</div>
+        <template v-else-if="tunnelDetail">
+          <section class="detail-summary">
+            <div class="detail-logo" :class="`protocol-${tunnelDetail.type.toLowerCase()}`">
+              <AppLogo :size="28" />
+            </div>
+            <div class="detail-title">
+              <span class="detail-eyebrow">{{ tunnelDetail.type.toUpperCase() }} 隧道</span>
+              <h2>{{ tunnelDetail.remark || tunnelDetail.name }}</h2>
+              <code>{{ tunnelDetail.name }}</code>
+            </div>
+            <Tag :color="getStatusColor(tunnelDetail.status)" type="light" size="large">
+              {{ getStatusText(tunnelDetail.status) }}
+            </Tag>
+            <div class="detail-actions" @click.stop>
+              <Button
+                class="tunnel-toggle-button"
+                theme="light"
+                :type="isStartedTunnel(tunnelDetail.name) ? 'tertiary' : 'primary'"
+                :loading="startingTunnelName === tunnelDetail.name"
+                :disabled="!!startingTunnelName"
+                :aria-label="isStartedTunnel(tunnelDetail.name) ? '停止隧道' : '启动隧道'"
+                :title="isStartedTunnel(tunnelDetail.name) ? '停止隧道' : '启动隧道'"
+                @click="handleToggleTunnel(tunnelDetail.name)"
+              >
+                <IconPower v-if="isStartedTunnel(tunnelDetail.name)" style="font-size: 17px" />
+                <IconPlay v-else style="font-size: 17px" />
+              </Button>
+              <Dropdown
+                trigger="hover"
+                position="bottomRight"
+                :visible="actionMenuKey === `detail:${tunnelDetail.name}`"
+                :menu="getTunnelActionMenu(tunnelDetail)"
+                :mouse-enter-delay="0"
+                :mouse-leave-delay="120"
+                content-class-name="tunnel-action-popup"
+                @visible-change="handleActionMenuVisibleChange(`detail:${tunnelDetail.name}`, $event)"
+              >
+                <Button
+                  class="more-action-button"
+                  theme="borderless"
+                  type="tertiary"
+                  aria-label="隧道操作"
+                  @click.stop="toggleActionMenu(`detail:${tunnelDetail.name}`)"
+                >
+                  <IconMore style="font-size: 19px" />
+                </Button>
+              </Dropdown>
+            </div>
+          </section>
+
+          <nav class="detail-tabs" aria-label="隧道详情视图">
+            <button :class="{ active: detailTab === 'overview' }" @click="detailTab = 'overview'">信息概览</button>
+            <button :class="{ active: detailTab === 'settings' }" @click="detailTab = 'settings'">设置</button>
+          </nav>
+
+          <Banner v-if="detailError" class="detail-error" type="danger" :description="detailError" />
+
+          <div v-if="detailTab === 'overview'" class="detail-content">
+            <section class="detail-section">
+              <h3>连接信息</h3>
+              <div class="detail-table">
+                <div><span>本地服务</span><code>{{ tunnelDetail.local_ip }}:{{ tunnelDetail.local_port }}</code><button aria-label="复制本地服务地址" @click="copyText(`${tunnelDetail.local_ip}:${tunnelDetail.local_port}`, '本地服务地址')"><IconCopy /></button></div>
+                <div><span>公网地址</span><code>{{ getTunnelTarget(tunnelDetail) }}</code><button aria-label="复制公网地址" @click="copyText(getTunnelTarget(tunnelDetail), '公网地址')"><IconCopy /></button></div>
+                <div><span>节点</span><strong>{{ tunnelDetail.node_name || `#${tunnelDetail.node_id}` }}</strong></div>
+                <div><span>节点地址</span><code>{{ tunnelDetail.node_address || '-' }}</code></div>
+              </div>
+            </section>
+
+            <section class="detail-section">
+              <h3>隧道配置</h3>
+              <div class="detail-table">
+                <div><span>协议</span><strong>{{ tunnelDetail.type.toUpperCase() }}</strong></div>
+                <div><span>远程端口</span><strong>{{ tunnelDetail.remote_port || '-' }}</strong></div>
+                <div><span>自定义域名</span><code>{{ tunnelDetail.custom_domain || '-' }}</code></div>
+                <div><span>自动 TLS</span><strong>{{ tunnelDetail.auto_tls ? '已开启' : '未开启' }}</strong></div>
+                <div><span>带宽限制</span><strong>{{ tunnelDetail.bandwidth_limit ? `${tunnelDetail.bandwidth_limit} Mbps` : '无限制' }}</strong></div>
+                <div><span>客户端版本</span><strong>{{ tunnelDetail.client_version || '-' }}</strong></div>
+              </div>
+            </section>
+
+            <section class="detail-section">
+              <h3>基础信息</h3>
+              <div class="detail-table">
+                <div><span>隧道 ID</span><strong>{{ tunnelDetail.id }}</strong></div>
+                <div><span>节点 ID</span><strong>{{ tunnelDetail.node_id }}</strong></div>
+                <div><span>创建时间</span><strong>{{ formatDateTime(tunnelDetail.created_at) }}</strong></div>
+                <div><span>隧道令牌</span><code class="secret-value">{{ tunnelDetail.tunnel_token || '-' }}</code><button aria-label="复制隧道令牌" @click="copyText(tunnelDetail.tunnel_token, '隧道令牌')"><IconCopy /></button></div>
+              </div>
+            </section>
+          </div>
+
+          <form v-else class="detail-settings" @submit.prevent="handleUpdateTunnel">
+            <section class="detail-section">
+              <div class="settings-heading">
+                <div><h3>基本设置</h3><p>修改隧道备注和本地服务连接。</p></div>
+                <IconEdit style="font-size: 18px" />
+              </div>
+              <div class="form-grid">
+                <label class="field field-wide"><span>隧道备注</span><input v-model="detailForm.remark" type="text" maxlength="64" /></label>
+                <label class="field"><span>本地 IP</span><input v-model="detailForm.local_ip" type="text" /></label>
+                <label class="field"><span>本地端口</span><input v-model.number="detailForm.local_port" type="number" min="1" max="65535" /></label>
+              </div>
+            </section>
+            <section class="detail-section">
+              <h3>协议设置</h3>
+              <div class="form-grid">
+                <label class="field"><span>协议类型</span><select v-model="detailForm.config.protocol"><option value="tcp">TCP</option><option value="udp">UDP</option><option value="http">HTTP</option><option value="https">HTTPS</option></select></label>
+                <label class="field"><span>Proxy Protocol</span><select v-model="detailForm.config.proxy_protocol_version"><option value="">关闭</option><option value="v1">V1</option><option value="v2">V2</option></select></label>
+                <label v-if="isDetailWebProtocol" class="field field-wide"><span>自定义域名</span><input v-model="detailForm.custom_domain" type="text" placeholder="service.example.com" /></label>
+                <label class="toggle-field field-wide"><input v-model="detailForm.config.auto_tls" type="checkbox" /><span><strong>自动 TLS</strong><small>为 HTTP/HTTPS 隧道自动配置 TLS。</small></span></label>
+              </div>
+            </section>
+            <footer class="detail-savebar">
+              <Button theme="light" type="tertiary" :disabled="detailSaving" @click="detailTab = 'overview'">取消</Button>
+              <Button html-type="submit" theme="solid" type="primary" :loading="detailSaving"><IconSave style="font-size: 15px" />保存更改</Button>
+            </footer>
+          </form>
+        </template>
+        <div v-else class="detail-state error-state">{{ detailError || "无法加载隧道详情" }}</div>
+      </div>
+    </Modal>
+
+    <Modal
+      :visible="createModalVisible"
+      :footer="null"
+      :mask-closable="!creatingTunnel"
+      title="创建隧道"
+      :width="720"
+      :body-style="{ padding: '0', overflow: 'hidden' }"
+      @cancel="closeCreateModal"
+    >
+      <form class="create-form" @submit.prevent="handleCreateTunnel">
+        <div class="create-form-content">
+          <p class="modal-description">将本地服务安全地映射到 Lolia FRP 节点</p>
+          <Banner v-if="createError" type="danger" :description="createError" />
+
+          <section class="form-section">
+            <div class="section-heading">
+              <span>01</span>
+              <div><h3>基本设置</h3><p>选择协议并为隧道设置易识别的备注。</p></div>
+            </div>
+            <div class="form-grid">
+              <label class="field field-wide">
+                <span>隧道备注</span>
+                <input v-model="createForm.remark" type="text" maxlength="64" placeholder="例如：家中 NAS" />
+              </label>
+              <label class="field">
+                <span>协议类型</span>
+                <select :value="createForm.type" @change="handleProtocolChange">
+                  <option value="tcp">TCP</option>
+                  <option value="udp">UDP</option>
+                  <option value="http">HTTP</option>
+                  <option value="https">HTTPS</option>
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <div class="section-heading">
+              <span>02</span>
+              <div><h3>选择节点</h3><p>仅显示支持 {{ createForm.type.toUpperCase() }} 协议的节点，离线节点不可选择。</p></div>
+            </div>
+            <div v-if="loadingNodes" class="node-list-state">正在获取节点列表...</div>
+            <div v-else-if="availableNodes.length" class="node-list" role="radiogroup" aria-label="转发节点">
+              <button
+                v-for="node in availableNodes"
+                :key="node.id"
+                type="button"
+                class="node-option"
+                :class="{ selected: node.id === createForm.node_id, offline: !isNodeOnline(node) }"
+                :disabled="!isNodeOnline(node)"
+                role="radio"
+                :aria-checked="node.id === createForm.node_id"
+                @click="selectNode(node)"
+              >
+                <span class="node-option-main">
+                  <span class="node-name-row">
+                    <strong>{{ node.name }}</strong>
+                    <Tag :color="isNodeOnline(node) ? 'green' : 'grey'" type="light" size="small">
+                      {{ isNodeOnline(node) ? "在线" : "离线" }}
+                    </Tag>
+                    <IconCheckCircleStroked v-if="node.id === createForm.node_id" class="node-check" style="font-size: 18px" />
+                  </span>
+                  <span v-if="node.remark" class="node-remark">{{ node.remark }}</span>
+                  <span class="node-meta">
+                    <span><IconMapPin style="font-size: 13px" />{{ node.region_code || "未知地区" }}</span>
+                    <span><IconGlobe style="font-size: 13px" />{{ node.bandwidth || 0 }} Mbps</span>
+                    <span>负载 {{ formatNodeLoad(node.load) }}</span>
+                  </span>
+                  <span class="node-protocols">
+                    <Tag v-for="protocol in node.supported_protocols" :key="protocol" color="blue" type="light" size="small">
+                      {{ protocol.toUpperCase() }}
+                    </Tag>
+                    <Tag v-if="node.need_kyc" color="orange" type="light" size="small">需实名</Tag>
+                    <Tag v-if="node.beian_required" color="violet" type="light" size="small">需备案</Tag>
+                  </span>
+                </span>
+              </button>
+            </div>
+            <div v-else class="node-list-state">暂无支持该协议的节点</div>
+          </section>
+
+          <section class="form-section">
+            <div class="section-heading">
+              <span>03</span>
+              <div><h3>本地服务</h3><p>填写需要被访问的本地监听地址。</p></div>
+            </div>
+            <div class="form-grid">
+              <label class="field">
+                <span>本地 IP</span>
+                <input v-model="createForm.local_ip" type="text" placeholder="127.0.0.1" />
+              </label>
+              <label class="field">
+                <span>本地端口</span>
+                <input v-model.number="createForm.local_port" type="number" min="1" max="65535" placeholder="例如：8080" />
+              </label>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <div class="section-heading">
+              <span>04</span>
+              <div><h3>公网访问</h3><p>{{ isWebProtocol ? "绑定用于访问服务的完整域名。" : "指定节点对外开放的访问端口。" }}</p></div>
+            </div>
+            <div class="form-grid single-field">
+              <label v-if="isWebProtocol" class="field field-wide">
+                <span>自定义域名</span>
+                <input v-model="createForm.custom_domain" type="text" placeholder="service.example.com" />
+              </label>
+              <label v-else class="field">
+                <span>远程端口</span>
+                <input v-model.number="createForm.remote_port" type="number" min="1" max="65535" placeholder="例如：11451" />
+              </label>
+            </div>
+          </section>
+        </div>
+
+        <div class="modal-actions">
+          <Button theme="light" type="tertiary" size="large" :disabled="creatingTunnel" @click="closeCreateModal">取消</Button>
+          <Button html-type="submit" theme="solid" type="primary" size="large" :loading="creatingTunnel" :disabled="loadingNodes || !selectedNode">
+            <IconPlus style="font-size: 17px" />创建隧道
+          </Button>
+        </div>
+      </form>
+    </Modal>
   </div>
 </template>
 
 <style scoped>
 .tunnels-page { display: flex; flex-direction: column; gap: 18px; }
-.toolbar-card, .tunnel-card, .empty-card { background: var(--app-surface); border-color: var(--app-border); }
-.tunnel-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
+.page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 4px 0 10px; }
+.page-heading h1, .page-heading p { margin: 0; }
+.page-heading h1 { color: var(--app-text-strong); font-size: 26px; line-height: 1.2; }
+.page-heading p { margin-top: 6px; color: var(--app-text); font-size: 13px; }
+.tunnel-toolbar { display: grid; grid-template-columns: minmax(180px, 260px) auto; align-items: center; gap: 10px; }
+.toolbar-actions { display: flex; align-items: center; gap: 10px; }
 .tunnel-toolbar :deep(.semi-button-content), .tunnel-actions :deep(.semi-button-content),
-.tunnel-tags :deep(.semi-tag-content), .traffic-meta span { display: flex; align-items: center; gap: 6px; }
-.tunnel-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-.tunnel-card { min-width: 0; }
-.tunnel-card-body { display: flex; flex-direction: column; gap: 16px; padding: 18px; }
-.tunnel-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.tunnel-title-row h2 { overflow: hidden; margin: 0; color: var(--app-text-strong); font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
-.tunnel-addresses { display: flex; flex-direction: column; gap: 8px; }
-.tunnel-addresses div { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 8px; }
-.tunnel-addresses span { color: var(--app-text); font-size: 12px; }
-.tunnel-addresses code { overflow: hidden; color: var(--app-text-strong); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.tunnel-tags, .traffic-meta, .tunnel-actions { display: flex; align-items: center; gap: 8px; }
-.traffic-meta { gap: 18px; color: var(--app-text); font-size: 12px; }
+.traffic-meta span, .modal-actions :deep(.semi-button-content), .detail-actions :deep(.semi-button-content),
+.detail-savebar :deep(.semi-button-content), .row-node strong { display: flex; align-items: center; gap: 6px; }
+.tunnel-list { overflow: hidden; border: 1px solid var(--app-border); border-radius: 7px; background: var(--app-surface); }
+.tunnel-row { display: grid; min-height: 82px; grid-template-columns: 66px minmax(150px, 1.15fr) minmax(110px, .8fr) minmax(130px, .9fr) minmax(130px, .9fr) 118px auto; align-items: center; gap: 16px; box-sizing: border-box; padding: 12px 16px; border-bottom: 1px solid var(--app-border); outline: none; cursor: pointer; transition: background .16s; }
+.tunnel-row:hover, .tunnel-row:focus-visible { background: var(--app-surface-muted); }
+.protocol-mark { display: grid; width: 52px; height: 52px; grid-template-rows: 1fr auto; place-items: center; border-radius: 7px; background: rgba(22, 119, 255, .1); color: #1677ff; }
+.protocol-mark span { padding-bottom: 5px; font-size: 9px; font-weight: 800; line-height: 1; }
+.protocol-udp { background: rgba(10, 158, 121, .11); color: #0a9e79; }
+.protocol-http, .protocol-https { background: rgba(230, 126, 34, .12); color: #c76816; }
+.tunnel-primary { display: flex; min-width: 0; flex-direction: column; gap: 6px; }
+.tunnel-name-line { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.tunnel-name-line strong { overflow: hidden; color: var(--app-text-strong); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.tunnel-identity { overflow: hidden; color: var(--app-text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.row-field { display: flex; min-width: 0; flex-direction: column; gap: 7px; }
+.row-field > span { color: var(--app-text); font-size: 11px; }
+.row-field strong, .row-field code { overflow: hidden; color: var(--app-text-strong); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.row-node strong { min-width: 0; }
+.traffic-meta, .tunnel-actions { display: flex; align-items: center; gap: 8px; }
+.traffic-meta { flex-direction: column; align-items: flex-start; gap: 7px; color: var(--app-text); font-size: 11px; }
 .traffic-meta span:first-child { color: #168f63; }
 .traffic-meta span:last-child { color: #2764e7; }
-.tunnel-actions { justify-content: space-between; padding: 12px 18px; border-top: 1px solid var(--app-border); }
-.empty-card { padding: 56px 20px; }
-@media (max-width: 980px) { .tunnel-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.tunnel-actions { justify-content: flex-end; }
+.tunnel-toggle-button { width: 32px; height: 32px; padding: 0; border-radius: 7px; }
+.more-action-button { width: 32px; height: 32px; border-radius: 7px; }
+.more-action-button:hover, .more-action-button:focus-visible { background: var(--app-surface-muted); }
+.list-summary { padding: 11px 16px; color: var(--app-text); font-size: 12px; text-align: right; }
+.empty-card { padding: 56px 20px; border: 1px solid var(--app-border); border-radius: 7px; background: var(--app-surface); }
+.detail-modal { color: var(--app-text-strong); }
+.detail-state { display: grid; min-height: 320px; place-items: center; color: var(--app-text); font-size: 13px; }
+.error-state { color: #d54941; }
+.detail-summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 16px; padding: 8px 24px 22px; }
+.detail-logo { display: grid; width: 52px; height: 52px; place-items: center; border-radius: 7px; background: rgba(22, 119, 255, .1); color: #1677ff; }
+.detail-title { min-width: 0; }
+.detail-title h2 { overflow: hidden; margin: 3px 0; font-size: 18px; text-overflow: ellipsis; white-space: nowrap; }
+.detail-title code, .detail-eyebrow { color: var(--app-text); font-size: 11px; }
+.detail-eyebrow { font-weight: 700; text-transform: uppercase; }
+.detail-actions { display: flex; align-items: center; gap: 7px; }
+.detail-tabs { display: flex; gap: 24px; padding: 0 24px; border-bottom: 1px solid var(--app-border); }
+.detail-tabs button { position: relative; padding: 12px 2px; border: 0; background: transparent; color: var(--app-text); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.detail-tabs button.active { color: #1677ff; }
+.detail-tabs button.active::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: #1677ff; content: ""; }
+.detail-error { margin: 16px 24px 0; }
+.detail-content, .detail-settings { display: flex; max-height: calc(100vh - 290px); min-height: 300px; flex-direction: column; gap: 22px; overflow-y: auto; padding: 22px 24px 26px; }
+.detail-section { min-width: 0; }
+.detail-section h3 { margin: 0 0 11px; color: var(--app-text-strong); font-size: 13px; }
+.detail-table { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--app-border); border-left: 1px solid var(--app-border); }
+.detail-table > div { display: grid; min-width: 0; min-height: 45px; grid-template-columns: 102px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 0 12px; border-right: 1px solid var(--app-border); border-bottom: 1px solid var(--app-border); background: var(--app-surface); }
+.detail-table span { color: var(--app-text); font-size: 11px; }
+.detail-table strong, .detail-table code { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.detail-table button { display: grid; width: 26px; height: 26px; place-items: center; border: 0; border-radius: 4px; background: transparent; color: var(--app-text); cursor: pointer; }
+.detail-table button:hover { background: var(--app-surface-muted); color: #1677ff; }
+.secret-value { filter: blur(3px); transition: filter .16s; }
+.secret-value:hover { filter: none; }
+.settings-heading { display: flex; justify-content: space-between; color: #1677ff; }
+.settings-heading h3, .settings-heading p { margin: 0; }
+.settings-heading p { margin-top: 4px; color: var(--app-text); font-size: 11px; }
+.toggle-field { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--app-border); border-radius: 6px; background: var(--app-surface-muted); }
+.toggle-field input { width: 16px; height: 16px; accent-color: #1677ff; }
+.toggle-field span { display: flex; flex-direction: column; gap: 2px; }
+.toggle-field strong { font-size: 12px; }
+.toggle-field small { color: var(--app-text); font-size: 11px; }
+.detail-savebar { position: sticky; bottom: -26px; z-index: 2; display: flex; justify-content: flex-end; gap: 10px; margin: 2px -24px -26px; padding: 14px 24px; border-top: 1px solid var(--app-border); background: var(--app-surface); box-shadow: 0 -6px 16px rgba(20, 24, 31, .04); }
+.create-form { display: grid; grid-template-rows: minmax(0, 1fr) auto; max-height: calc(100vh - 132px); }
+.create-form-content { display: flex; min-height: 0; flex-direction: column; gap: 14px; overflow-y: auto; padding: 4px 24px 18px; }
+.modal-description { margin: -2px 0 2px; color: var(--app-text); font-size: 12px; }
+.form-section { padding: 18px; border: 1px solid var(--app-border); border-radius: 8px; background: var(--app-surface-muted); }
+.section-heading { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+.section-heading > span { display: grid; width: 28px; height: 28px; flex: 0 0 28px; place-items: center; border-radius: 6px; background: rgba(22, 119, 255, .12); color: #1677ff; font-size: 11px; font-weight: 700; }
+.section-heading h3, .section-heading p { margin: 0; }
+.section-heading h3 { color: var(--app-text-strong); font-size: 14px; }
+.section-heading p { margin-top: 3px; color: var(--app-text); font-size: 12px; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.field { display: flex; min-width: 0; flex-direction: column; gap: 7px; color: var(--app-text-strong); font-size: 12px; font-weight: 600; }
+.field-wide { grid-column: 1 / -1; }
+.field input, .field select { width: 100%; height: 38px; box-sizing: border-box; padding: 0 11px; border: 1px solid var(--app-border); border-radius: 6px; outline: none; background: var(--app-surface); color: var(--app-text-strong); font: inherit; font-weight: 400; transition: border-color .16s, box-shadow .16s; }
+.field input:focus, .field select:focus { border-color: #1677ff; box-shadow: 0 0 0 3px rgba(22, 119, 255, .12); }
+.field select:disabled { cursor: not-allowed; opacity: .6; }
+.single-field { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.node-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.node-option { min-width: 0; padding: 13px; border: 1px solid var(--app-border); border-radius: 7px; background: var(--app-surface); color: var(--app-text-strong); text-align: left; cursor: pointer; transition: border-color .16s, background .16s, box-shadow .16s; }
+.node-option:hover:not(:disabled) { border-color: #1677ff; }
+.node-option.selected { border-color: #1677ff; background: rgba(22, 119, 255, .06); box-shadow: 0 0 0 2px rgba(22, 119, 255, .1); }
+.node-option.offline { cursor: not-allowed; opacity: .58; }
+.node-option-main { display: flex; min-width: 0; flex-direction: column; gap: 8px; }
+.node-name-row, .node-meta, .node-protocols { display: flex; align-items: center; gap: 7px; }
+.node-name-row strong { overflow: hidden; flex: 1; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.node-check { flex: 0 0 auto; color: #1677ff; }
+.node-remark { overflow: hidden; color: var(--app-text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.node-meta { flex-wrap: wrap; color: var(--app-text); font-size: 11px; }
+.node-meta span { display: flex; align-items: center; gap: 3px; }
+.node-protocols { flex-wrap: wrap; }
+.node-list-state { display: grid; min-height: 82px; place-items: center; border: 1px dashed var(--app-border); border-radius: 7px; color: var(--app-text); font-size: 12px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 24px; border-top: 1px solid var(--app-border); background: var(--app-surface); box-shadow: 0 -6px 16px rgba(20, 24, 31, .04); }
+:global(.semi-modal-content:has(.create-form)) { border-radius: 8px; background: var(--app-surface); }
+:global(.semi-modal-content:has(.create-form) .semi-modal-header) { margin-bottom: 16px; }
+:global(.semi-modal:has(.create-form)) { width: 720px !important; max-width: calc(100vw - 24px); }
+:global(.semi-modal-content:has(.detail-modal)) { border-radius: 8px; background: var(--app-surface); }
+:global(.semi-modal-content:has(.detail-modal) .semi-modal-header) { margin-bottom: 14px; }
+:global(.semi-modal:has(.detail-modal)) { width: 900px !important; max-width: calc(100vw - 24px); }
+:global(.tunnel-action-popup) { padding: 6px 0 !important; border: 1px solid var(--app-border); border-radius: 8px; background: var(--app-surface); box-shadow: 0 8px 24px rgba(20, 24, 31, .14); }
+:global(.tunnel-action-popup .semi-dropdown-menu), :global(.tunnel-action-menu) { min-width: 138px; padding: 0; background: transparent; }
+:global(.tunnel-action-popup .semi-dropdown-item), :global(.tunnel-action-menu .semi-dropdown-item) { display: flex; height: 42px; box-sizing: border-box; align-items: center; gap: 12px; margin: 0; padding: 0 14px; border-radius: 0; color: var(--app-text-strong); font-size: 14px; line-height: 42px; white-space: nowrap; }
+:global(.tunnel-action-popup .semi-dropdown-item > .semi-icon), :global(.tunnel-action-menu .semi-dropdown-item > .semi-icon) { width: 17px; height: 17px; flex: 0 0 17px; font-size: 17px; }
+:global(.tunnel-action-popup .semi-dropdown-item:hover), :global(.tunnel-action-menu .semi-dropdown-item:hover) { background: var(--app-surface-muted); }
+:global(.tunnel-action-popup .mobile-tunnel-action) { display: none; }
+@media (max-width: 1180px) {
+  .tunnel-row { grid-template-columns: 58px minmax(150px, 1.2fr) minmax(110px, .8fr) minmax(130px, 1fr) 110px auto; }
+  .row-address:nth-of-type(5) { display: none; }
+}
+@media (max-width: 900px) {
+  .page-heading { align-items: flex-start; flex-direction: column; }
+  .tunnel-toolbar { width: 100%; grid-template-columns: minmax(0, 1fr) auto; }
+  .tunnel-row { grid-template-columns: 58px minmax(140px, 1fr) minmax(120px, .8fr) 100px auto; }
+  .row-node { display: none; }
+}
 @media (max-width: 620px) {
-  .tunnel-grid { grid-template-columns: 1fr; }
   .tunnel-toolbar { grid-template-columns: 1fr; }
+  .toolbar-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .page-heading h1 { font-size: 23px; }
+  .tunnel-row { grid-template-columns: 48px minmax(0, 1fr) auto; gap: 12px; padding: 12px; }
+  .protocol-mark { width: 44px; height: 48px; }
+  .row-field, .traffic-meta { display: none; }
+  .tunnel-actions > .tunnel-toggle-button { display: none; }
+  .list-summary { text-align: left; }
+  .detail-summary { grid-template-columns: auto minmax(0, 1fr) auto; padding: 4px 16px 18px; }
+  .detail-summary > :deep(.semi-tag) { grid-column: 2; justify-self: start; }
+  .detail-actions { grid-row: 1 / span 2; grid-column: 3; }
+  .detail-actions > .tunnel-toggle-button { display: none; }
+  .detail-tabs { padding: 0 16px; }
+  .detail-error { margin-right: 16px; margin-left: 16px; }
+  .detail-content, .detail-settings { max-height: calc(100vh - 305px); padding: 18px 16px 22px; }
+  .detail-table { grid-template-columns: 1fr; }
+  .detail-table > div { grid-template-columns: 86px minmax(0, 1fr) auto; }
+  .detail-savebar { bottom: -22px; margin-right: -16px; margin-bottom: -22px; margin-left: -16px; padding-right: 16px; padding-left: 16px; }
+  :global(.semi-modal:has(.detail-modal)) { top: 8px !important; margin-top: 0 !important; }
+  .form-grid, .single-field { grid-template-columns: 1fr; }
+  .node-list { grid-template-columns: 1fr; }
+  .field-wide { grid-column: auto; }
+  .form-section { padding: 14px; }
+  .create-form-content { padding-right: 16px; padding-left: 16px; }
+  .modal-actions { padding-right: 16px; padding-left: 16px; }
+  :global(.tunnel-action-popup .mobile-tunnel-action) { display: flex; }
 }
 </style>

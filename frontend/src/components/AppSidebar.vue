@@ -48,7 +48,7 @@ const navigation = [
   padding: 18px 12px 14px;
   border-right: 1px solid var(--app-border);
   box-sizing: border-box;
-  background: var(--app-surface);
+  background: var(--app-surface-muted);
 }
 .sidebar-label {
   padding: 0 10px 9px;
@@ -73,8 +73,9 @@ const navigation = [
 }
 .sidebar-link:hover { color: var(--app-text-strong); background: var(--app-surface-muted); }
 .sidebar-link.router-link-active {
-  color: var(--app-accent);
-  background: color-mix(in srgb, var(--app-accent) 10%, transparent);
+  color: #1677ff;
+  background: var(--app-nav-active);
+  box-shadow: 0 1px 3px rgba(20, 24, 31, .08);
 }
 .sidebar-icon { flex: 0 0 auto; font-size: 17px; }
 .sidebar-meta { display: flex; flex-direction: column; gap: 2px; margin-top: auto; padding: 12px 10px 2px; color: var(--app-text); }

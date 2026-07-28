@@ -2,10 +2,13 @@ import { apiRequest } from "./http";
 
 type CenterServiceBinding = {
   GetDashboard: () => Promise<any>;
+  GetNodes: () => Promise<any>;
+  CreateTunnel: (input: CreateTunnelInput) => Promise<any>;
   GetRunnerRuntimeStatus: () => Promise<any>;
   GetTunnelsOverview: (page: number, limit: number, days: number) => Promise<any>;
   GetRunnerData: (tunnelID: number) => Promise<any>;
   GetTunnelDetail: (tunnelName: string) => Promise<any>;
+  UpdateTunnel: (tunnelName: string, input: UpdateTunnelInput) => Promise<any>;
   StartRunner: (tunnelNames: string[]) => Promise<RunnerRuntimeStatus>;
   StopRunner: () => Promise<any>;
   GetTrafficDaily: (days: number) => Promise<any>;
@@ -85,6 +88,43 @@ export interface TunnelOverviewItem {
   total_traffic?: number;
 }
 
+export interface NodeItem {
+  id: number;
+  name: string;
+  region_code: string;
+  status: string;
+  supported_protocols: string[];
+  need_kyc: boolean;
+  beian_required: boolean;
+  frps_version: string;
+  agent_version: string;
+  sponsor: string;
+  bandwidth: number;
+  remark: string;
+  load: number;
+}
+
+export interface NodeListData {
+  nodes: NodeItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface CreateTunnelInput {
+  node_id: number;
+  type: string;
+  local_ip: string;
+  local_port: number;
+  remote_port: number;
+  custom_domain: string;
+  remark: string;
+}
+
+export interface CreateTunnelResult {
+  created: boolean;
+}
+
 export interface DailyTrafficResponse {
   days: number;
   daily_stats: Array<{
@@ -120,6 +160,7 @@ export interface RunnerData {
 }
 
 export interface TunnelDetailData {
+  auto_tls: boolean;
   bandwidth_limit: number;
   client_version: string;
   created_at: string;
@@ -135,6 +176,28 @@ export interface TunnelDetailData {
   remote_port: number;
   status: string;
   tunnel_token: string;
+  type: string;
+}
+
+export interface UpdateTunnelInput {
+  local_ip: string;
+  local_port: number;
+  custom_domain: string;
+  remark: string;
+  config: {
+    auto_tls: boolean;
+    proxy_protocol_version: string;
+    protocol: string;
+  };
+}
+
+export interface UpdateTunnelResult {
+  auto_tls: boolean;
+  custom_domain: string;
+  id: number;
+  name: string;
+  node_id: number;
+  status: string;
   type: string;
 }
 
@@ -176,6 +239,31 @@ export async function getTunnelsOverview(
   }
 }
 
+export async function getNodes(): Promise<NodeListData> {
+  try {
+    const svc = getCenterServiceBinding();
+    return svc
+      ? (await svc.GetNodes()) as NodeListData
+      : await apiRequest<NodeListData>("/api/center/nodes");
+  } catch (error) {
+    throw parseError(error);
+  }
+}
+
+export async function createTunnel(input: CreateTunnelInput): Promise<CreateTunnelResult> {
+  try {
+    const svc = getCenterServiceBinding();
+    return svc
+      ? (await svc.CreateTunnel(input)) as CreateTunnelResult
+      : await apiRequest<CreateTunnelResult>("/api/center/tunnel/create", {
+          method: "POST",
+          body: JSON.stringify(input),
+        });
+  } catch (error) {
+    throw parseError(error);
+  }
+}
+
 export async function getRunnerData(tunnelID = 0): Promise<RunnerData> {
   try {
     const svc = getCenterServiceBinding();
@@ -193,6 +281,23 @@ export async function getTunnelDetail(tunnelName: string): Promise<TunnelDetailD
     return svc
       ? (await svc.GetTunnelDetail(tunnelName)) as TunnelDetailData
       : await apiRequest<TunnelDetailData>(`/api/center/tunnel/detail?name=${encodeURIComponent(tunnelName)}`);
+  } catch (error) {
+    throw parseError(error);
+  }
+}
+
+export async function updateTunnel(
+  tunnelName: string,
+  input: UpdateTunnelInput,
+): Promise<UpdateTunnelResult> {
+  try {
+    const svc = getCenterServiceBinding();
+    return svc
+      ? (await svc.UpdateTunnel(tunnelName, input)) as UpdateTunnelResult
+      : await apiRequest<UpdateTunnelResult>(`/api/center/tunnel/detail?name=${encodeURIComponent(tunnelName)}`, {
+          method: "PUT",
+          body: JSON.stringify(input),
+        });
   } catch (error) {
     throw parseError(error);
   }

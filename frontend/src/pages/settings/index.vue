@@ -4,7 +4,6 @@ import { useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { Banner, Button, Card, Progress, Tag } from "@kousum/semi-ui-vue";
 import {
-  IconCheckboxTick,
   IconCloud,
   IconCopy,
   IconDelete,
@@ -18,12 +17,6 @@ import {
   IconUser,
 } from "@kousum/semi-icons-vue";
 import AppLogo from "@/components/AppLogo.vue";
-import {
-  accentPresets,
-  applyAccentColors,
-  readSavedAccentId,
-  saveAccentId,
-} from "@/plugins/theme";
 import { useGlobalLoadingStore } from "@/stores/globalLoading";
 import { useFrpcInstallStore } from "@/stores/frpcInstall";
 import {
@@ -67,7 +60,6 @@ const customMirrorBaseURL = ref("");
 const customMirrorURLTemplate = ref("");
 const themeMode = ref<ThemeMode>("system");
 const showMirrorSwitchHint = ref(false);
-const accentId = ref(readSavedAccentId());
 const logoutLoading = ref(false);
 
 const themeStorageKey = "lolia.theme";
@@ -358,13 +350,11 @@ const resolveThemeName = (mode: ThemeMode): "light" | "dark" => {
 const handleSystemThemePreferenceChange = () => {
   if (themeMode.value === "system") {
     document.body.setAttribute("theme-mode", getSystemThemeName());
-    applyAccentColors(accentId.value);
   }
 };
 
 const applyTheme = (mode: ThemeMode) => {
   document.body.setAttribute("theme-mode", resolveThemeName(mode));
-  applyAccentColors(accentId.value);
   try {
     localStorage.setItem(themeStorageKey, mode);
   } catch {
@@ -401,23 +391,9 @@ const handleThemeChange = (value: string | null) => {
     nextTheme = "dark";
   }
 
-  if (themeMode.value === nextTheme) {
-    return;
-  }
-
   themeMode.value = nextTheme;
   applyTheme(nextTheme);
   showMessage("主题已切换", "success");
-};
-
-const handleAccentChange = (id: string) => {
-  if (accentId.value === id) {
-    return;
-  }
-  accentId.value = id;
-  applyAccentColors(id);
-  saveAccentId(id);
-  showMessage("强调色已更新", "success");
 };
 
 const syncMirrorForm = (nextStatus: FrpcStatus) => {
@@ -593,7 +569,6 @@ onBeforeUnmount(() => {
 
       <div v-if="activePanel === 'appearance'" class="panel-stack">
         <section class="setting-section"><h2>主题模式</h2><select v-model="themeMode" class="form-control" @change="handleThemeChange(themeMode)"><option v-for="item in themeModeItems" :key="item.value" :value="item.value">{{ item.title }}</option></select><p>支持跟随系统、浅色、深色模式，设置会自动保存到本地。</p></section>
-        <section class="setting-section"><h2>强调色</h2><div class="accent-list"><button v-for="preset in accentPresets" :key="preset.id" class="accent-swatch" :class="{ active: accentId === preset.id }" :style="{ background: preset.light }" :title="preset.name" :aria-label="preset.name" @click="handleAccentChange(preset.id)"><IconCheckboxTick v-if="accentId === preset.id" /></button></div><p>强调色会应用到按钮、链接等主色元素，选择即时生效并保存到本地。</p></section>
       </div>
 
       <div v-else-if="activePanel === 'frpc'" class="panel-stack">
@@ -636,9 +611,7 @@ onBeforeUnmount(() => {
 .form-control:focus { border-color: var(--app-accent); }
 .mirror-section { display: flex; flex-direction: column; gap: 12px; }
 .mirror-section h2 { margin-bottom: 2px; }.mirror-section label { display: flex; flex-direction: column; gap: 6px; color: var(--app-text); font-size: 12px; }
-.accent-list, .action-row, .frpc-title { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
-.accent-swatch { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 2px solid transparent; border-radius: 50%; color: white; cursor: pointer; box-shadow: 0 1px 3px #0003; }
-.accent-swatch.active { border-color: var(--app-text-strong); }
+.action-row, .frpc-title { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
 .frpc-hero, .about-hero { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 20px; border: 1px solid color-mix(in srgb, var(--app-accent) 25%, var(--app-border)); border-radius: 6px; background: color-mix(in srgb, var(--app-accent) 7%, var(--app-surface)); }
 .frpc-title h2 { margin: 0; color: var(--app-text-strong); font-size: 20px; letter-spacing: 0; }
 .progress-label { display: flex; justify-content: space-between; margin-bottom: 10px; color: var(--app-text); font-size: 12px; }

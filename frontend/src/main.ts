@@ -2,7 +2,6 @@ import { createApp } from "vue";
 import { createPinia } from "pinia";
 import App from "./App.vue";
 import router from "./router";
-import { applyAccentColors, readSavedAccentId } from "./plugins/theme";
 import "./assets/css/style.css";
 import "./assets/css/comfortaa-fonts.css";
 import "unfonts.css";
@@ -24,7 +23,6 @@ const applyTheme = () => {
   const mode = readThemeMode();
   const dark = mode === "dark" || (mode === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
   document.body.setAttribute("theme-mode", dark ? "dark" : "light");
-  applyAccentColors(readSavedAccentId());
 };
 
 applyTheme();

@@ -47,6 +47,10 @@ func (a *CenterAPI) GetUserTunnels(ctx context.Context, page, limit int) (*model
 	return &data, nil
 }
 
+func (a *CenterAPI) CreateTunnel(ctx context.Context, input models.CreateTunnelInput) error {
+	return a.client.DoJSON(ctx, http.MethodPost, "/user/tunnel", nil, input, nil)
+}
+
 func (a *CenterAPI) GetTrafficTunnels(ctx context.Context, days int) (*models.TrafficTunnelData, error) {
 	query := map[string]string{
 		"days": strconv.Itoa(days),
@@ -71,7 +75,8 @@ func (a *CenterAPI) GetTrafficDaily(ctx context.Context, days int) (*models.Dail
 
 func (a *CenterAPI) GetNodes(ctx context.Context) (*models.NodeListData, error) {
 	var data models.NodeListData
-	if err := a.client.DoJSON(ctx, http.MethodPost, "/user/nodes", nil, map[string]any{}, &data); err != nil {
+	input := map[string]int{"page": 1, "limit": 1000}
+	if err := a.client.DoJSON(ctx, http.MethodPost, "/user/nodes", nil, input, &data); err != nil {
 		return nil, err
 	}
 	return &data, nil
@@ -97,6 +102,15 @@ func (a *CenterAPI) GetTunnelDetail(ctx context.Context, tunnelName string) (*mo
 	path := "/user/tunnel/" + neturl.PathEscape(trimmedName)
 	var data models.TunnelDetailData
 	if err := a.client.DoJSON(ctx, http.MethodGet, path, nil, nil, &data); err != nil {
+		return nil, err
+	}
+	return &data, nil
+}
+
+func (a *CenterAPI) UpdateTunnel(ctx context.Context, tunnelName string, input models.UpdateTunnelInput) (*models.UpdateTunnelResult, error) {
+	path := "/user/tunnel/" + neturl.PathEscape(strings.TrimSpace(tunnelName))
+	var data models.UpdateTunnelResult
+	if err := a.client.DoJSON(ctx, http.MethodPut, path, nil, input, &data); err != nil {
 		return nil, err
 	}
 	return &data, nil

@@ -27,6 +27,20 @@ type TunnelOverviewData struct {
 	TotalPage int64        `json:"total_page"`
 }
 
+type CreateTunnelInput struct {
+	NodeID       int64  `json:"node_id"`
+	Type         string `json:"type"`
+	LocalIP      string `json:"local_ip"`
+	LocalPort    int64  `json:"local_port"`
+	RemotePort   int64  `json:"remote_port"`
+	CustomDomain string `json:"custom_domain"`
+	Remark       string `json:"remark"`
+}
+
+type CreateTunnelResult struct {
+	Created bool `json:"created"`
+}
+
 type RunnerData struct {
 	Config        string      `json:"config"`
 	Version       string      `json:"version"`
@@ -97,6 +111,7 @@ type TunnelItem struct {
 }
 
 type TunnelDetailData struct {
+	AutoTLS        bool   `json:"auto_tls"`
 	BandwidthLimit int64  `json:"bandwidth_limit"`
 	ClientVersion  string `json:"client_version"`
 	CreatedAt      string `json:"created_at"`
@@ -113,6 +128,30 @@ type TunnelDetailData struct {
 	Status         string `json:"status"`
 	TunnelToken    string `json:"tunnel_token"`
 	Type           string `json:"type"`
+}
+
+type UpdateTunnelConfig struct {
+	AutoTLS              bool   `json:"auto_tls"`
+	ProxyProtocolVersion string `json:"proxy_protocol_version"`
+	Protocol             string `json:"protocol"`
+}
+
+type UpdateTunnelInput struct {
+	LocalIP      string             `json:"local_ip"`
+	LocalPort    int64              `json:"local_port"`
+	CustomDomain string             `json:"custom_domain"`
+	Remark       string             `json:"remark"`
+	Config       UpdateTunnelConfig `json:"config"`
+}
+
+type UpdateTunnelResult struct {
+	AutoTLS      bool   `json:"auto_tls"`
+	CustomDomain string `json:"custom_domain"`
+	ID           int64  `json:"id"`
+	Name         string `json:"name"`
+	NodeID       int64  `json:"node_id"`
+	Status       string `json:"status"`
+	Type         string `json:"type"`
 }
 
 type AppVersionInfo struct {
@@ -136,15 +175,19 @@ type TunnelListData struct {
 type NodeItem struct {
 	ID                 int64    `json:"id"`
 	Name               string   `json:"name"`
+	RegionCode         string   `json:"region_code"`
 	Status             string   `json:"status"`
 	IPAddress          string   `json:"ip_address"`
 	SupportedProtocols []string `json:"supported_protocols"`
 	NeedKYC            bool     `json:"need_kyc"`
+	BeianRequired      bool     `json:"beian_required"`
 	FrpsVersion        string   `json:"frps_version"`
 	AgentVersion       string   `json:"agent_version"`
 	FrpsPort           int64    `json:"frps_port"`
 	Sponsor            string   `json:"sponsor"`
 	Bandwidth          int64    `json:"bandwidth"`
+	Remark             string   `json:"remark"`
+	Load               float64  `json:"load"`
 	LastSeen           string   `json:"last_seen"`
 	CreatedAt          string   `json:"created_at"`
 }
