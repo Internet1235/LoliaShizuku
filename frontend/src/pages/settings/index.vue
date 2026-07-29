@@ -18,6 +18,7 @@ import {
 } from "@kousum/semi-icons-vue";
 import AppLogo from "@/components/AppLogo.vue";
 import { useGlobalLoadingStore } from "@/stores/globalLoading";
+import { useNotificationStore, type NotificationType } from "@/stores/notification";
 import { useFrpcInstallStore } from "@/stores/frpcInstall";
 import {
   getFrpcStatus,
@@ -50,9 +51,6 @@ const prefersDarkMedia =
 
 const status = ref<FrpcStatus | null>(null);
 const activePanel = ref<SettingsPanel>("frpc");
-const snackbar = ref(false);
-const snackbarText = ref("");
-const snackbarColor = ref<"success" | "error" | "info">("info");
 const mirrorMode = ref<MirrorMode>("official");
 const builtinMirrorPresetID = ref("");
 const customMirrorMode = ref<CustomMirrorMode>("base");
@@ -84,6 +82,7 @@ const themeModeItems = [
 const globalLoadingStore = useGlobalLoadingStore();
 const withGlobalLoading = <T>(task: () => Promise<T>) =>
   globalLoadingStore.withGlobalLoading(task);
+const notificationStore = useNotificationStore();
 
 const frpcInstallStore = useFrpcInstallStore();
 const { installing, canceling, phase, downloaded, total, percent, indeterminate } =
@@ -130,14 +129,9 @@ const progressDetail = computed(() => {
 
 const showMessage = (
   text: string,
-  color: "success" | "error" | "info" = "info",
+  color: NotificationType = "info",
 ) => {
-  snackbarText.value = text;
-  snackbarColor.value = color;
-  snackbar.value = true;
-  window.setTimeout(() => {
-    snackbar.value = false;
-  }, 2600);
+  notificationStore.show(text, color);
 };
 
 const panelTitle = computed(() => {
@@ -555,7 +549,6 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="settings-page">
-    <Transition name="toast"><div v-if="snackbar" class="settings-toast" :data-type="snackbarColor">{{ snackbarText }}</div></Transition>
     <aside class="settings-nav">
       <div class="nav-label">设置菜单</div>
       <button :class="{ active: activePanel === 'frpc' }" @click="activePanel = 'frpc'"><IconCloud />frpc 管理</button>
@@ -622,6 +615,5 @@ dl { display: grid; grid-template-columns: 1fr auto; gap: 12px; margin: 0; font-
 .path-list { display: flex; flex-direction: column; }.path-row { display: grid; grid-template-columns: 78px minmax(0, 1fr) 30px; align-items: center; gap: 8px; min-height: 38px; border-bottom: 1px solid var(--app-border); }.path-row:last-child { border-bottom: 0; }.path-row span { color: var(--app-text); font-size: 12px; }.path-row code { overflow: hidden; color: var(--app-text-strong); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .about-logo { display: grid; place-items: center; width: 68px; height: 68px; flex: 0 0 68px; border-radius: var(--app-radius-control); color: var(--app-accent); background: var(--app-surface); }
 .about-hero { justify-content: flex-start; }.about-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }.about-grid span, .about-grid strong { display: block; }.about-grid span { color: var(--app-text); font-size: 11px; }.about-grid strong { overflow-wrap: anywhere; margin-top: 5px; color: var(--app-text-strong); font-size: 13px; }.about-footer { margin: 0; color: var(--app-text); font-size: 11px; text-align: center; }
-.settings-toast { position: fixed; z-index: 30; right: 22px; bottom: 22px; max-width: min(360px, calc(100vw - 44px)); padding: 11px 14px; border: 1px solid var(--app-border); border-left: 3px solid var(--app-accent); border-radius: var(--app-radius-control); color: var(--app-text-strong); background: var(--app-surface); box-shadow: 0 8px 24px #0002; }.settings-toast[data-type="success"] { border-left-color: #16a06a; }.settings-toast[data-type="error"] { border-left-color: #d33c46; }.toast-enter-active,.toast-leave-active { transition: opacity .18s, transform .18s; }.toast-enter-from,.toast-leave-to { opacity: 0; transform: translateY(8px); }
 @media (max-width: 760px) { .settings-page { grid-template-columns: 1fr; }.settings-nav { flex-direction: row; overflow-x: auto; padding: 7px; }.nav-label { display: none; }.settings-nav button { flex: 0 0 auto; }.detail-grid, .about-grid { grid-template-columns: 1fr; }.frpc-hero { align-items: stretch; flex-direction: column; }.path-row { grid-template-columns: 64px minmax(0, 1fr) 30px; }.panel-stack { padding: 14px; } }
 </style>

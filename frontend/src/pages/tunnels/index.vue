@@ -37,14 +37,13 @@ import {
   type UpdateTunnelInput,
 } from "@/services/center";
 import { useGlobalLoadingStore } from "@/stores/globalLoading";
+import { useNotificationStore } from "@/stores/notification";
 import AppLogo from "@/components/AppLogo.vue";
 
 defineOptions({
   name: "TunnelsPage",
 });
 
-const errorMessage = ref("");
-const successMessage = ref("");
 const searchQuery = ref("");
 const tunnels = ref<TunnelOverviewItem[]>([]);
 const nodes = ref<NodeItem[]>([]);
@@ -65,6 +64,7 @@ const createForm = reactive<Omit<CreateTunnelInput, "local_port" | "remote_port"
   remark: "",
 });
 const globalLoadingStore = useGlobalLoadingStore();
+const notificationStore = useNotificationStore();
 const withGlobalLoading = <T,>(task: () => Promise<T>) =>
   globalLoadingStore.withGlobalLoading(task);
 const runnerStatus = ref<RunnerRuntimeStatus>({
@@ -202,7 +202,6 @@ const handleProtocolChange = (event: Event) => {
 
 const openCreateModal = async () => {
   resetCreateForm();
-  successMessage.value = "";
   createModalVisible.value = true;
   if (nodes.value.length > 0) {
     selectFirstAvailableNode();
@@ -256,18 +255,17 @@ const handleCreateTunnel = async () => {
       remote_port: isWebProtocol.value ? 0 : (createForm.remote_port ?? 0),
     });
     createModalVisible.value = false;
-    successMessage.value = "隧道创建成功";
+    notificationStore.success("隧道创建成功");
     await loadTunnels();
   } catch (error) {
     createError.value = error instanceof Error ? error.message : "创建隧道失败，请稍后重试";
+    notificationStore.error(createError.value);
   } finally {
     creatingTunnel.value = false;
   }
 };
 
 const loadTunnels = async () => {
-  errorMessage.value = "";
-
   await withGlobalLoading(async () => {
     try {
       const [response, status] = await Promise.all([
@@ -277,8 +275,7 @@ const loadTunnels = async () => {
       tunnels.value = response.list ?? [];
       runnerStatus.value = status;
     } catch (error) {
-      errorMessage.value =
-        error instanceof Error ? error.message : "加载隧道列表失败，请稍后重试";
+      notificationStore.error(error instanceof Error ? error.message : "加载隧道列表失败，请稍后重试");
     }
   });
 };
@@ -379,9 +376,9 @@ const copyText = async (value: string, label: string) => {
   if (!value) return;
   try {
     await navigator.clipboard.writeText(value);
-    successMessage.value = `${label}已复制`;
+    notificationStore.success(`${label}已复制`);
   } catch {
-    detailError.value = "复制失败，请手动选择文本";
+    notificationStore.error("复制失败，请手动选择文本");
   }
 };
 
@@ -419,10 +416,11 @@ const handleUpdateTunnel = async () => {
     tunnelDetail.value = detail;
     fillDetailForm(detail);
     await loadTunnels();
-    successMessage.value = "隧道设置已保存";
+    notificationStore.success("隧道设置已保存");
     detailTab.value = "overview";
   } catch (error) {
     detailError.value = error instanceof Error ? error.message : "保存隧道设置失败";
+    notificationStore.error(detailError.value);
   } finally {
     detailSaving.value = false;
   }
@@ -443,14 +441,13 @@ const isStartedTunnel = (tunnelName: string) => {
 };
 
 const handleStartTunnel = async (tunnelName: string) => {
-  errorMessage.value = "";
   startingTunnelName.value = tunnelName;
   try {
     runnerStatus.value = await startRunner([tunnelName]);
     await loadTunnels();
+    notificationStore.success("隧道已启动");
   } catch (error) {
-    errorMessage.value =
-      error instanceof Error ? error.message : "启动隧道失败，请稍后重试";
+    notificationStore.error(error instanceof Error ? error.message : "启动隧道失败，请稍后重试");
   } finally {
     startingTunnelName.value = "";
   }
@@ -458,14 +455,14 @@ const handleStartTunnel = async (tunnelName: string) => {
 
 const handleStopTunnel = async (tunnelName: string) => {
   closeActionMenu();
-  errorMessage.value = "";
   startingTunnelName.value = tunnelName;
   try {
     await stopTunnelRunner(tunnelName);
     runnerStatus.value = await getRunnerRuntimeStatus();
     await loadTunnels();
+    notificationStore.success("隧道已停止");
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : "停止隧道失败，请稍后重试";
+    notificationStore.error(error instanceof Error ? error.message : "停止隧道失败，请稍后重试");
   } finally {
     startingTunnelName.value = "";
   }
@@ -481,14 +478,14 @@ const handleToggleTunnel = async (tunnelName: string) => {
 
 const handleRestartTunnel = async (tunnelName: string) => {
   closeActionMenu();
-  errorMessage.value = "";
   startingTunnelName.value = tunnelName;
   try {
     await stopTunnelRunner(tunnelName);
     runnerStatus.value = await startRunner([tunnelName]);
     await loadTunnels();
+    notificationStore.success("隧道已重启");
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : "重启隧道失败，请稍后重试";
+    notificationStore.error(error instanceof Error ? error.message : "重启隧道失败，请稍后重试");
   } finally {
     startingTunnelName.value = "";
   }
@@ -564,9 +561,6 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="tunnels-page">
-    <Banner v-if="errorMessage" type="danger" :description="errorMessage" />
-    <Banner v-if="successMessage" type="success" :description="successMessage" />
-
     <header class="page-heading">
       <div>
         <h1>隧道</h1>
@@ -796,7 +790,8 @@ onBeforeUnmount(() => {
           </div>
 
           <form v-else class="detail-settings" @submit.prevent="handleUpdateTunnel">
-            <section class="detail-section">
+            <div class="detail-settings-content">
+              <section class="detail-section">
               <div class="settings-heading">
                 <div><h3>基本设置</h3><p>修改隧道备注和本地服务连接。</p></div>
                 <IconEdit style="font-size: 18px" />
@@ -806,8 +801,8 @@ onBeforeUnmount(() => {
                 <label class="field"><span>本地 IP</span><input v-model="detailForm.local_ip" type="text" /></label>
                 <label class="field"><span>本地端口</span><input v-model.number="detailForm.local_port" type="number" min="1" max="65535" /></label>
               </div>
-            </section>
-            <section class="detail-section">
+              </section>
+              <section class="detail-section">
               <h3>协议设置</h3>
               <div class="form-grid">
                 <label class="field"><span>协议类型</span><select v-model="detailForm.config.protocol"><option value="tcp">TCP</option><option value="udp">UDP</option><option value="http">HTTP</option><option value="https">HTTPS</option></select></label>
@@ -815,7 +810,8 @@ onBeforeUnmount(() => {
                 <label v-if="isDetailWebProtocol" class="field field-wide"><span>自定义域名</span><input v-model="detailForm.custom_domain" type="text" placeholder="service.example.com" /></label>
                 <label class="toggle-field field-wide"><input v-model="detailForm.config.auto_tls" type="checkbox" /><span><strong>自动 TLS</strong><small>为 HTTP/HTTPS 隧道自动配置 TLS。</small></span></label>
               </div>
-            </section>
+              </section>
+            </div>
             <footer class="detail-savebar">
               <Button theme="light" type="tertiary" :disabled="detailSaving" @click="detailTab = 'overview'">取消</Button>
               <Button html-type="submit" theme="solid" type="primary" :loading="detailSaving"><IconSave style="font-size: 15px" />保存更改</Button>
@@ -990,8 +986,9 @@ onBeforeUnmount(() => {
 .traffic-meta span, .modal-actions :deep(.semi-button-content), .detail-actions :deep(.semi-button-content),
 .detail-savebar :deep(.semi-button-content), .row-node strong { display: flex; align-items: center; gap: 6px; }
 .tunnel-list { display: flex; flex-direction: column; gap: 14px; }
-.tunnel-row { display: grid; min-height: 82px; grid-template-columns: 66px minmax(150px, 1.15fr) minmax(110px, .8fr) minmax(130px, .9fr) minmax(130px, .9fr) 118px auto; align-items: center; gap: 16px; box-sizing: border-box; padding: 12px 16px; border: 1px solid var(--app-border); border-radius: var(--app-radius-panel); outline: none; background: var(--app-surface); cursor: pointer; transition: border-color .16s, background .16s; }
-.tunnel-row:hover, .tunnel-row:focus-visible { background: var(--app-surface-muted); }
+.tunnel-row { display: grid; min-height: 82px; grid-template-columns: 66px minmax(150px, 1.15fr) minmax(110px, .8fr) minmax(130px, .9fr) minmax(130px, .9fr) 118px auto; align-items: center; gap: 16px; box-sizing: border-box; padding: 12px 16px; border: 1px solid var(--app-border); border-radius: var(--app-radius-panel); outline: none; background: var(--app-surface-muted); cursor: pointer; transition: border-color .16s; }
+.tunnel-row:hover { background: var(--app-surface-muted); }
+.tunnel-row:focus-visible { border-color: color-mix(in srgb, var(--app-text) 45%, var(--app-border)); }
 .protocol-mark { display: grid; width: 52px; height: 52px; grid-template-rows: 1fr auto; place-items: center; border-radius: var(--app-radius-control); background: color-mix(in srgb, var(--app-accent) 10%, transparent); color: var(--app-accent); }
 .protocol-mark span { padding-bottom: 5px; font-size: 9px; font-weight: 800; line-height: 1; }
 .protocol-udp { background: rgba(10, 158, 121, .11); color: #0a9e79; }
@@ -1015,14 +1012,14 @@ onBeforeUnmount(() => {
 .tunnel-toggle-button.is-stop:hover:not(:disabled), .tunnel-toggle-button.is-stop:focus-visible:not(:disabled) { border-color: color-mix(in srgb, #e5484d 28%, transparent); background: color-mix(in srgb, #e5484d 12%, var(--app-surface)); color: #d9363e; }
 .tunnel-toggle-button.is-stop:active:not(:disabled) { border-color: #e5484d; background: transparent; color: #d9363e; }
 .more-action-button { width: 38px; height: 38px; border-radius: var(--app-radius-control); }
-.more-action-button:hover { background: var(--app-surface-muted); }
+.more-action-button:hover { background: color-mix(in srgb, var(--app-text-strong) 10%, var(--app-surface-muted)); }
 .more-action-button:focus-visible, .more-action-button:active { background: transparent; }
 .list-summary { padding: 0 2px; color: var(--app-text); font-size: 12px; text-align: right; }
 .empty-card { padding: 56px 20px; border: 1px solid var(--app-border); border-radius: var(--app-radius-panel); background: var(--app-surface); }
 .detail-modal { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow: hidden; color: var(--app-text-strong); }
 .detail-state { display: grid; min-height: 320px; place-items: center; color: var(--app-text); font-size: 13px; }
 .error-state { color: #d54941; }
-.detail-summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 16px; padding: 8px 24px 22px; }
+.detail-summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 16px; margin: 0 24px 18px; padding: 14px 16px; border: 1px solid var(--app-border); border-radius: var(--app-radius-panel); background: var(--app-surface-muted); }
 .detail-logo { display: grid; width: 52px; height: 52px; place-items: center; border-radius: var(--app-radius-control); background: color-mix(in srgb, var(--app-accent) 10%, transparent); color: var(--app-accent); }
 .detail-title { min-width: 0; }
 .detail-title h2 { overflow: hidden; margin: 3px 0; font-size: 18px; text-overflow: ellipsis; white-space: nowrap; }
@@ -1034,7 +1031,9 @@ onBeforeUnmount(() => {
 .detail-tabs button.active { color: #1677ff; }
 .detail-tabs button.active::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: #1677ff; content: ""; }
 .detail-error { margin: 16px 24px 0; }
-.detail-content, .detail-settings { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 22px; overflow-y: auto; padding: 22px 24px 26px; overscroll-behavior: contain; }
+.detail-content { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 22px; overflow-y: auto; padding: 22px 24px 26px; overscroll-behavior: contain; }
+.detail-settings { display: grid; min-height: 0; flex: 1; grid-template-rows: minmax(0, 1fr) auto; overflow: hidden; }
+.detail-settings-content { display: flex; min-height: 0; flex-direction: column; gap: 22px; overflow-y: auto; padding: 22px 24px 26px; overscroll-behavior: contain; }
 .detail-section { min-width: 0; }
 .detail-section h3 { margin: 0 0 11px; color: var(--app-text-strong); font-size: 13px; }
 .detail-table { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--app-border); border-left: 1px solid var(--app-border); }
@@ -1042,7 +1041,7 @@ onBeforeUnmount(() => {
 .detail-table span { color: var(--app-text); font-size: 11px; }
 .detail-table strong, .detail-table code { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .detail-table button { display: grid; width: 26px; height: 26px; place-items: center; border: 0; border-radius: 4px; background: transparent; color: var(--app-text); cursor: pointer; }
-.detail-table button:hover { background: var(--app-surface-muted); color: #1677ff; }
+.detail-table button:hover { background: color-mix(in srgb, var(--app-text-strong) 10%, var(--app-surface-muted)); color: #1677ff; }
 .secret-value { filter: blur(3px); transition: filter .16s; }
 .secret-value:hover { filter: none; }
 .settings-heading { display: flex; justify-content: space-between; color: #1677ff; }
@@ -1053,7 +1052,8 @@ onBeforeUnmount(() => {
 .toggle-field span { display: flex; flex-direction: column; gap: 2px; }
 .toggle-field strong { font-size: 12px; }
 .toggle-field small { color: var(--app-text); font-size: 11px; }
-.detail-savebar { position: sticky; bottom: -26px; z-index: 2; display: flex; justify-content: flex-end; gap: 10px; margin: 2px -24px -26px; padding: 14px 24px; border-top: 1px solid var(--app-border); background: var(--app-surface); box-shadow: 0 -6px 16px rgba(20, 24, 31, .04); }
+.detail-savebar { z-index: 2; display: flex; justify-content: flex-end; gap: 10px; padding: 14px 24px; border-top: 1px solid var(--app-border); background: var(--app-surface); box-shadow: 0 -6px 16px rgba(20, 24, 31, .04); }
+.detail-savebar :deep(.semi-button-light) { background: color-mix(in srgb, var(--app-text-strong) 10%, var(--app-surface-muted)); }
 .create-form { display: grid; min-height: 0; flex: 1; grid-template-rows: minmax(0, 1fr) auto; }
 .create-form-content { display: flex; min-height: 0; flex-direction: column; gap: 14px; overflow-y: auto; padding: 4px 24px 18px; overscroll-behavior: contain; }
 .modal-description { margin: -2px 0 2px; color: var(--app-text); font-size: 12px; }
@@ -1124,16 +1124,16 @@ onBeforeUnmount(() => {
   .row-field, .traffic-meta { display: none; }
   .tunnel-actions > .tunnel-toggle-button { display: none; }
   .list-summary { text-align: left; }
-  .detail-summary { grid-template-columns: auto minmax(0, 1fr) auto; padding: 4px 16px 18px; }
+  .detail-summary { grid-template-columns: auto minmax(0, 1fr) auto; margin: 0 16px 14px; padding: 12px; }
   .detail-summary > :deep(.semi-tag) { grid-column: 2; justify-self: start; }
   .detail-actions { grid-row: 1 / span 2; grid-column: 3; }
   .detail-actions > .tunnel-toggle-button { display: none; }
   .detail-tabs { padding: 0 16px; }
   .detail-error { margin-right: 16px; margin-left: 16px; }
-  .detail-content, .detail-settings { padding: 18px 16px 22px; }
+  .detail-content, .detail-settings-content { padding: 18px 16px 22px; }
   .detail-table { grid-template-columns: 1fr; }
   .detail-table > div { grid-template-columns: 86px minmax(0, 1fr) auto; }
-  .detail-savebar { bottom: -22px; margin-right: -16px; margin-bottom: -22px; margin-left: -16px; padding-right: 16px; padding-left: 16px; }
+  .detail-savebar { padding-right: 16px; padding-left: 16px; }
   :global(.semi-modal:has(.create-form)), :global(.semi-modal:has(.detail-modal)), :global(.semi-modal:has(.tunnel-log-modal)) { max-width: calc(100vw - 24px); margin: 12px auto !important; }
   :global(.semi-modal-content:has(.create-form)), :global(.semi-modal-content:has(.detail-modal)) { max-height: calc(100dvh - 24px); }
   .form-grid, .single-field { grid-template-columns: 1fr; }

@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { useRoute } from "vue-router";
 import AppHeader from "./components/AppHeader.vue";
 import AppSidebar from "./components/AppSidebar.vue";
+import AppNotification from "./components/AppNotification.vue";
 import { useGlobalLoadingStore } from "@/stores/globalLoading";
 
 const globalLoadingStore = useGlobalLoadingStore();
@@ -13,6 +14,7 @@ const showNavigation = computed(() => route.path !== "/oauth");
 <template>
   <div class="app-shell">
     <AppHeader style="--wails-draggable: drag" />
+    <AppNotification />
     <div v-if="globalLoadingStore.isLoading" class="app-global-loading-bar" />
     <div class="app-workspace" :class="{ 'app-workspace--auth': !showNavigation }">
       <AppSidebar v-if="showNavigation" />

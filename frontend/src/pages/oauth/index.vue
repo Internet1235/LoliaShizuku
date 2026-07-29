@@ -3,7 +3,8 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { beginOAuthLogin } from "@/services/auth";
 import { isWails } from "@/services/platform";
-import { Banner, Button } from "@kousum/semi-ui-vue";
+import { useNotificationStore } from "@/stores/notification";
+import { Button } from "@kousum/semi-ui-vue";
 import { IconArrowRight } from "@kousum/semi-icons-vue";
 
 defineOptions({
@@ -11,10 +12,9 @@ defineOptions({
 });
 
 const router = useRouter();
+const notificationStore = useNotificationStore();
 
 const isLoading = ref(false);
-const errorMessage = ref("");
-const successMessage = ref("");
 
 function parseError(error: unknown): string {
   if (typeof error === "string" && error.trim()) {
@@ -38,9 +38,6 @@ function parseError(error: unknown): string {
 }
 
 async function handleLogin() {
-  errorMessage.value = "";
-  successMessage.value = "";
-
   isLoading.value = true;
   try {
     const ok = await beginOAuthLogin();
@@ -50,11 +47,11 @@ async function handleLogin() {
     }
 
     if (isWails()) {
-      successMessage.value = "登录成功，正在跳转...";
+      notificationStore.success("登录成功，正在跳转...");
       await router.replace("/");
     }
   } catch (error) {
-    errorMessage.value = parseError(error);
+    notificationStore.error(parseError(error));
   } finally {
     isLoading.value = false;
   }
@@ -72,8 +69,6 @@ async function handleLogin() {
         <h1>Lolia Shizuku</h1>
         <p>登录后管理隧道、流量与服务器上的 frpc Runner。</p>
       </div>
-      <Banner v-if="errorMessage" type="danger" :description="errorMessage" />
-      <Banner v-if="successMessage" type="success" :description="successMessage" />
       <Button
         class="login-button"
         :loading="isLoading"

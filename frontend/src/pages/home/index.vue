@@ -9,7 +9,7 @@ import {
   VisTooltip,
 } from "@unovis/vue";
 import { useElementSize } from "@vueuse/core";
-import { Avatar, Banner, Card, Tag } from "@kousum/semi-ui-vue";
+import { Avatar, Card, Tag } from "@kousum/semi-ui-vue";
 import { IconActivity, IconHistogram, IconServer } from "@kousum/semi-icons-vue";
 import {
   getDashboard,
@@ -17,6 +17,7 @@ import {
   type DailyTrafficResponse,
 } from "@/services/center";
 import { useGlobalLoadingStore } from "@/stores/globalLoading";
+import { useNotificationStore } from "@/stores/notification";
 
 defineOptions({
   name: "HomePage",
@@ -33,8 +34,8 @@ type DataRecord = {
   tunnels: TunnelData[];
 };
 
-const errorMessage = ref("");
 const globalLoadingStore = useGlobalLoadingStore();
+const notificationStore = useNotificationStore();
 const withGlobalLoading = <T>(task: () => Promise<T>) =>
   globalLoadingStore.withGlobalLoading(task);
 
@@ -178,8 +179,7 @@ const loadDashboard = async () => {
           : "-",
     };
   } catch (error) {
-    errorMessage.value =
-      error instanceof Error ? error.message : "加载主页数据失败";
+    notificationStore.error(error instanceof Error ? error.message : "加载主页数据失败");
   }
 };
 
@@ -187,13 +187,11 @@ const loadDailyTraffic = async () => {
   try {
     dailyTraffic.value = await getTrafficDaily(7);
   } catch (error) {
-    errorMessage.value =
-      error instanceof Error ? error.message : "加载近七天流量失败";
+    notificationStore.error(error instanceof Error ? error.message : "加载近七天流量失败");
   }
 };
 
 const loadData = async () => {
-  errorMessage.value = "";
   await withGlobalLoading(async () => {
     await Promise.all([loadDashboard(), loadDailyTraffic()]);
   });
@@ -223,8 +221,6 @@ onMounted(() => {
 
 <template>
   <div class="home-page">
-    <Banner v-if="errorMessage" type="danger" :description="errorMessage" />
-
     <Card class="welcome-card" :bordered="true">
       <div class="welcome-content">
         <Avatar :src="userInfo.avatarUrl" size="large">{{ userInfo.name.slice(0, 1) }}</Avatar>
