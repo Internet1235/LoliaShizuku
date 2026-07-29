@@ -19,8 +19,10 @@ import IconRestart from "~icons/lucide/rotate-cw";
 import IconSave from "~icons/lucide/save";
 import IconSearch from "~icons/lucide/search";
 import IconServer from "~icons/lucide/server";
+import IconTrash from "~icons/lucide/trash-2";
 import {
   createTunnel,
+  deleteTunnel,
   getNodes,
   getRunnerRuntimeStatus,
   getTunnelDetail,
@@ -38,6 +40,7 @@ import {
 } from "@/services/center";
 import { useGlobalLoadingStore } from "@/stores/globalLoading";
 import { useNotificationStore } from "@/stores/notification";
+import NotificationStatusIcon from "@/components/NotificationStatusIcon.vue";
 import AppLogo from "@/components/AppLogo.vue";
 
 defineOptions({
@@ -91,6 +94,9 @@ const logError = ref("");
 const logTunnelName = ref("");
 const logTunnelRemark = ref("");
 const logStatus = ref<RunnerRuntimeStatus | null>(null);
+const deleteModalVisible = ref(false);
+const deletingTunnel = ref(false);
+const tunnelPendingDelete = ref<TunnelOverviewItem | null>(null);
 let logRefreshTimer: ReturnType<typeof setInterval> | null = null;
 const detailForm = reactive<UpdateTunnelInput>({
   local_ip: "",
@@ -137,7 +143,7 @@ const availableNodes = computed(() => nodes.value.filter((node) => {
 const isNodeOnline = (node: NodeItem) => ["online", "active"].includes(node.status.toLowerCase());
 const selectedNode = computed(() => nodes.value.find((node) => node.id === createForm.node_id));
 const isDetailWebProtocol = computed(() => ["http", "https"].includes(detailForm.config.protocol));
-const hasOpenModal = computed(() => detailModalVisible.value || createModalVisible.value || logModalVisible.value);
+const hasOpenModal = computed(() => detailModalVisible.value || createModalVisible.value || logModalVisible.value || deleteModalVisible.value);
 
 watch(hasOpenModal, (visible) => {
   document.querySelector<HTMLElement>(".app-content-scroll")?.classList.toggle("is-modal-open", visible);
@@ -258,9 +264,9 @@ const handleCreateTunnel = async () => {
       remark: createForm.remark.trim(),
       remote_port: isWebProtocol.value ? 0 : (createForm.remote_port ?? 0),
     });
-    await loadTunnels();
     createModalVisible.value = false;
     notificationStore.success("隧道创建成功");
+    await loadTunnels(false);
   } catch (error) {
     createError.value = error instanceof Error ? error.message : "创建隧道失败，请稍后重试";
     notificationStore.error(createError.value);
@@ -269,17 +275,23 @@ const handleCreateTunnel = async () => {
   }
 };
 
-const loadTunnels = async () => {
+const loadTunnels = async (notifyError = true) => {
   await withGlobalLoading(async () => {
     try {
-      const [response, status] = await Promise.all([
-        getTunnelsOverview(1, 100, 2),
-        getRunnerRuntimeStatus(),
-      ]);
+      const response = await getTunnelsOverview(1, 100, 2);
       tunnels.value = response.list ?? [];
-      runnerStatus.value = status;
     } catch (error) {
-      notificationStore.error(error instanceof Error ? error.message : "加载隧道列表失败，请稍后重试");
+      if (notifyError) {
+        notificationStore.error(error instanceof Error ? error.message : "加载隧道列表失败，请稍后重试");
+      }
+    }
+
+    try {
+      runnerStatus.value = await getRunnerRuntimeStatus();
+    } catch (error) {
+      if (notifyError) {
+        notificationStore.error(error instanceof Error ? error.message : "加载运行状态失败，请稍后重试");
+      }
     }
   });
 };
@@ -533,6 +545,45 @@ const closeTunnelLog = () => {
   clearLogRefreshTimer();
 };
 
+const openDeleteTunnel = (tunnel: TunnelOverviewItem) => {
+  closeActionMenu();
+  tunnelPendingDelete.value = tunnel;
+  deleteModalVisible.value = true;
+};
+
+const closeDeleteModal = () => {
+  if (!deletingTunnel.value) {
+    deleteModalVisible.value = false;
+    tunnelPendingDelete.value = null;
+  }
+};
+
+const handleDeleteTunnel = async () => {
+  const tunnel = tunnelPendingDelete.value;
+  if (!tunnel) return;
+
+  deletingTunnel.value = true;
+  try {
+    await deleteTunnel(tunnel.name);
+    tunnels.value = tunnels.value.filter((item) => item.name !== tunnel.name);
+    if (tunnelDetail.value?.name === tunnel.name) {
+      detailModalVisible.value = false;
+      tunnelDetail.value = null;
+    }
+    if (logTunnelName.value === tunnel.name) {
+      closeTunnelLog();
+    }
+    deleteModalVisible.value = false;
+    tunnelPendingDelete.value = null;
+    notificationStore.success("隧道已删除");
+    await loadTunnels(false);
+  } catch (error) {
+    notificationStore.error(error instanceof Error ? error.message : "删除隧道失败，请稍后重试");
+  } finally {
+    deletingTunnel.value = false;
+  }
+};
+
 const getTunnelActionMenu = (tunnel: TunnelOverviewItem): DropDownMenuItem[] => [
   {
     node: "item",
@@ -550,6 +601,7 @@ const getTunnelActionMenu = (tunnel: TunnelOverviewItem): DropDownMenuItem[] => 
   }] : []),
   { node: "item", name: "详情", icon: h(IconInfoCircle), onClick: () => { closeActionMenu(); void openTunnelDetail(tunnel.name); } },
   { node: "item", name: "运行日志", icon: h(IconFile), onClick: () => void openTunnelLog(tunnel) },
+  { node: "item", className: "delete-tunnel-action", name: "删除", icon: h(IconTrash), onClick: () => openDeleteTunnel(tunnel) },
 ];
 
 onMounted(() => {
@@ -971,6 +1023,29 @@ onBeforeUnmount(() => {
         <pre v-else class="tunnel-log-output">{{ logStatus?.log_lines?.join("\n") || "暂无运行日志" }}</pre>
       </div>
     </Modal>
+
+    <Modal
+      :visible="deleteModalVisible"
+      :footer="null"
+      centered
+      :mask-closable="!deletingTunnel"
+      :closable="false"
+      :width="520"
+      :body-style="{ padding: '0' }"
+      @cancel="closeDeleteModal"
+    >
+      <div class="delete-confirmation">
+        <header class="delete-confirmation-heading">
+          <NotificationStatusIcon type="error" />
+          <h3>删除{{ tunnelPendingDelete?.remark || tunnelPendingDelete?.name }}</h3>
+        </header>
+        <p>隧道将被删除。删除后，该隧道的配置将无法恢复。是否确定继续？</p>
+        <footer class="delete-confirmation-actions">
+          <Button theme="light" type="tertiary" :disabled="deletingTunnel" @click="closeDeleteModal">取消</Button>
+          <Button theme="solid" type="danger" :loading="deletingTunnel" @click="handleDeleteTunnel"><IconTrash />删除隧道</Button>
+        </footer>
+      </div>
+    </Modal>
   </div>
 </template>
 
@@ -1094,10 +1169,10 @@ onBeforeUnmount(() => {
 :global(.semi-modal-content:has(.detail-modal) .semi-modal-header) { margin-bottom: 14px; }
 :global(.semi-modal-content:has(.detail-modal) .semi-modal-body) { display: flex; min-height: 0; flex: 1; overflow: hidden; }
 :global(.semi-modal:has(.detail-modal)) { width: 900px !important; max-width: calc(100vw - 48px); margin: 24px auto !important; }
-.tunnel-log-modal { display: flex; min-height: 260px; max-height: calc(100dvh - 160px); flex-direction: column; gap: 12px; overflow: hidden; }
+.tunnel-log-modal { display: flex; min-height: 300px; max-height: calc(100dvh - 160px); flex-direction: column; gap: 12px; padding-bottom: 24px; overflow: hidden; }
 .tunnel-log-meta { display: flex; align-items: center; justify-content: space-between; padding: 0 20px; color: var(--app-text); font-size: 12px; }
-.tunnel-log-state { display: grid; min-height: 260px; place-items: center; color: var(--app-text); }
-.tunnel-log-output { min-height: 260px; margin: 0; padding: 16px 20px; overflow: auto; background: #101216; color: #d7dce2; font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tunnel-log-state { display: grid; min-height: 300px; place-items: center; color: var(--app-text); }
+.tunnel-log-output { min-height: 300px; margin: 0 20px; padding: 18px 20px 32px; overflow: auto; border-radius: var(--app-radius-control); background: #101216; color: #d7dce2; font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 :global(.semi-modal-content:has(.tunnel-log-modal)) { overflow: hidden; border-radius: var(--app-radius-panel); background: var(--app-surface); }
 :global(.semi-modal:has(.tunnel-log-modal)) { width: 760px !important; max-width: calc(100vw - 48px); margin: 24px auto !important; }
 :global(.tunnel-action-popup) { padding: 6px 0 !important; border: 1px solid var(--app-border); border-radius: var(--app-radius-panel); background: var(--app-surface); box-shadow: 0 8px 24px rgba(20, 24, 31, .14); }
@@ -1106,6 +1181,16 @@ onBeforeUnmount(() => {
 :global(.tunnel-action-popup .semi-dropdown-item > .semi-icon), :global(.tunnel-action-menu .semi-dropdown-item > .semi-icon) { width: 17px; height: 17px; flex: 0 0 17px; font-size: 17px; }
 :global(.tunnel-action-popup .semi-dropdown-item:hover), :global(.tunnel-action-menu .semi-dropdown-item:hover) { background: var(--app-surface-muted); }
 :global(.tunnel-action-popup .mobile-tunnel-action) { display: none; }
+:global(.semi-modal-content:has(.delete-confirmation)) { padding: 0; overflow: hidden; }
+:global(.semi-modal-content:has(.delete-confirmation) .semi-modal-body-wrapper) { margin: 0; }
+.delete-confirmation { padding: 28px 32px; }
+.delete-confirmation-heading { display: flex; align-items: center; gap: 12px; }
+.delete-confirmation h3, .delete-confirmation p { margin: 0; }
+.delete-confirmation h3 { overflow: hidden; color: var(--app-text-strong); font-size: 18px; text-overflow: ellipsis; white-space: nowrap; }
+.delete-confirmation p { margin-top: 28px; color: var(--app-text-strong); font-size: 14px; line-height: 1.7; }
+.delete-confirmation-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 28px; }
+.delete-confirmation-actions :deep(.semi-button) { min-width: 108px; height: 42px; }
+.delete-confirmation-actions :deep(.semi-button-content) { display: flex; align-items: center; gap: 6px; }
 @media (max-width: 1180px) {
   .tunnel-row { grid-template-columns: 58px minmax(150px, 1.2fr) minmax(110px, .8fr) minmax(130px, 1fr) 110px auto; }
   .row-address:nth-of-type(5) { display: none; }
@@ -1144,5 +1229,8 @@ onBeforeUnmount(() => {
   .create-form-content { padding-right: 16px; padding-left: 16px; }
   .modal-actions { padding-right: 16px; padding-left: 16px; }
   :global(.tunnel-action-popup .mobile-tunnel-action) { display: flex; }
+  .delete-confirmation { padding: 24px; }
+  .delete-confirmation p, .delete-confirmation-actions { margin-top: 22px; }
+  .delete-confirmation-actions :deep(.semi-button) { min-width: 96px; }
 }
 </style>

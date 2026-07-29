@@ -222,6 +222,9 @@ func (s *WebServer) centerHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		} else if r.Method == http.MethodGet {
 			value, err = s.center.GetTunnelDetail(r.URL.Query().Get("name"))
+		} else if r.Method == http.MethodDelete {
+			err = s.center.DeleteTunnel(r.URL.Query().Get("name"))
+			value = map[string]bool{"deleted": err == nil}
 		} else {
 			methodNotAllowed(w)
 			return

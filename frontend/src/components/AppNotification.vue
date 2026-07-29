@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import IconCheck from "~icons/lucide/check";
-import IconInfo from "~icons/lucide/info";
-import IconAlert from "~icons/lucide/circle-alert";
+import NotificationStatusIcon from "@/components/NotificationStatusIcon.vue";
 import { useNotificationStore } from "@/stores/notification";
 
 const notificationStore = useNotificationStore();
@@ -18,11 +16,7 @@ const notificationStore = useNotificationStore();
       aria-live="polite"
       @click="notificationStore.dismiss"
     >
-      <span class="app-notification-icon" aria-hidden="true">
-        <IconCheck v-if="notificationStore.type === 'success'" />
-        <IconAlert v-else-if="notificationStore.type === 'error'" />
-        <IconInfo v-else />
-      </span>
+      <NotificationStatusIcon :type="notificationStore.type" />
       <span>{{ notificationStore.message }}</span>
     </div>
   </Transition>
@@ -51,20 +45,6 @@ const notificationStore = useNotificationStore();
   cursor: pointer;
 }
 
-.app-notification-icon {
-  display: grid;
-  width: 24px;
-  height: 24px;
-  flex: 0 0 24px;
-  place-items: center;
-  border-radius: 50%;
-  background: #168f63;
-  color: #fff;
-}
-
-.app-notification-icon :deep(svg) { width: 15px; height: 15px; stroke-width: 2.5; }
-.app-notification[data-type="error"] .app-notification-icon { background: #d9363e; }
-.app-notification[data-type="info"] .app-notification-icon { background: var(--app-accent); }
 .app-notification-enter-active, .app-notification-leave-active { transition: opacity .18s ease, transform .18s ease; }
 .app-notification-enter-from, .app-notification-leave-to { opacity: 0; transform: translate(-50%, -10px); }
 

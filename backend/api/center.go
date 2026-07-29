@@ -116,6 +116,11 @@ func (a *CenterAPI) UpdateTunnel(ctx context.Context, tunnelName string, input m
 	return &data, nil
 }
 
+func (a *CenterAPI) DeleteTunnel(ctx context.Context, tunnelName string) error {
+	path := "/user/tunnel/" + neturl.PathEscape(strings.TrimSpace(tunnelName))
+	return a.client.DoJSON(ctx, http.MethodDelete, path, nil, nil, nil)
+}
+
 func (a *CenterAPI) GetClientVersion(ctx context.Context) (*models.AppVersionInfo, error) {
 	var data models.AppVersionInfo
 	if err := a.client.DoJSON(ctx, http.MethodGet, "/client/version", nil, nil, &data); err != nil {

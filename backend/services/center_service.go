@@ -513,6 +513,23 @@ func (s *CenterService) UpdateTunnel(tunnelName string, input models.UpdateTunne
 	return s.api.UpdateTunnel(context.Background(), tunnelName, input)
 }
 
+func (s *CenterService) DeleteTunnel(tunnelName string) error {
+	tunnelName = strings.TrimSpace(tunnelName)
+	if tunnelName == "" {
+		return fmt.Errorf("缺少隧道名称")
+	}
+	if _, err := s.StopTunnelRunner(tunnelName); err != nil {
+		return err
+	}
+	if err := s.api.DeleteTunnel(context.Background(), tunnelName); err != nil {
+		return err
+	}
+	s.runnerMu.Lock()
+	delete(s.runnerProcesses, tunnelName)
+	s.runnerMu.Unlock()
+	return nil
+}
+
 func (s *CenterService) GetClientVersion() (*models.AppVersionInfo, error) {
 	return s.api.GetClientVersion(context.Background())
 }

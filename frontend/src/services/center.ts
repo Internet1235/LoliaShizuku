@@ -10,6 +10,7 @@ type CenterServiceBinding = {
   GetRunnerData: (tunnelID: number) => Promise<any>;
   GetTunnelDetail: (tunnelName: string) => Promise<any>;
   UpdateTunnel: (tunnelName: string, input: UpdateTunnelInput) => Promise<any>;
+  DeleteTunnel: (tunnelName: string) => Promise<void>;
   StartRunner: (tunnelNames: string[]) => Promise<RunnerRuntimeStatus>;
   StopRunner: () => Promise<any>;
   StopTunnelRunner: (tunnelName: string) => Promise<any>;
@@ -300,6 +301,21 @@ export async function updateTunnel(
           method: "PUT",
           body: JSON.stringify(input),
         });
+  } catch (error) {
+    throw parseError(error);
+  }
+}
+
+export async function deleteTunnel(tunnelName: string): Promise<void> {
+  try {
+    const svc = getCenterServiceBinding();
+    if (svc) {
+      await svc.DeleteTunnel(tunnelName);
+      return;
+    }
+    await apiRequest(`/api/center/tunnel/detail?name=${encodeURIComponent(tunnelName)}`, {
+      method: "DELETE",
+    });
   } catch (error) {
     throw parseError(error);
   }
