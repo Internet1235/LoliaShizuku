@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed } from "vue";
+import { computed, onBeforeUnmount, ref } from "vue";
 import { useRoute } from "vue-router";
 import AppHeader from "./components/AppHeader.vue";
 import AppSidebar from "./components/AppSidebar.vue";
@@ -9,6 +9,63 @@ import { useGlobalLoadingStore } from "@/stores/globalLoading";
 const globalLoadingStore = useGlobalLoadingStore();
 const route = useRoute();
 const showNavigation = computed(() => route.path !== "/oauth");
+const contentScroller = ref<HTMLElement | null>(null);
+let scrollbarHideTimer: ReturnType<typeof setTimeout> | undefined;
+
+function setScrollbarVisible() {
+  const scroller = contentScroller.value;
+  if (!scroller) return;
+
+  clearTimeout(scrollbarHideTimer);
+  scroller.classList.add("is-scrollbar-visible");
+}
+
+function hideScrollbarAfterDelay() {
+  const scroller = contentScroller.value;
+  if (!scroller) return;
+
+  clearTimeout(scrollbarHideTimer);
+  scrollbarHideTimer = setTimeout(() => scroller.classList.remove("is-scrollbar-visible"), 700);
+}
+
+function showScrollbarTemporarily() {
+  setScrollbarVisible();
+  hideScrollbarAfterDelay();
+}
+
+function handleScrollerPointerMove(event: PointerEvent) {
+  const scroller = contentScroller.value;
+  if (!scroller) return;
+
+  const bounds = scroller.getBoundingClientRect();
+  const verticalScrollbarWidth = scroller.offsetWidth - scroller.clientWidth;
+  const horizontalScrollbarHeight = scroller.offsetHeight - scroller.clientHeight;
+  const isOverVerticalScrollbar = verticalScrollbarWidth > 0
+    && event.clientX >= bounds.right - verticalScrollbarWidth;
+  const isOverHorizontalScrollbar = horizontalScrollbarHeight > 0
+    && event.clientY >= bounds.bottom - horizontalScrollbarHeight;
+
+  if (isOverVerticalScrollbar || isOverHorizontalScrollbar) {
+    setScrollbarVisible();
+    scroller.classList.add("is-scrollbar-hovered");
+    return;
+  }
+
+  if (scroller.classList.contains("is-scrollbar-hovered")) {
+    scroller.classList.remove("is-scrollbar-hovered");
+    hideScrollbarAfterDelay();
+  }
+}
+
+function handleScrollerPointerLeave() {
+  const scroller = contentScroller.value;
+  if (!scroller) return;
+
+  scroller.classList.remove("is-scrollbar-hovered");
+  hideScrollbarAfterDelay();
+}
+
+onBeforeUnmount(() => clearTimeout(scrollbarHideTimer));
 </script>
 
 <template>
@@ -18,7 +75,13 @@ const showNavigation = computed(() => route.path !== "/oauth");
     <div v-if="globalLoadingStore.isLoading" class="app-global-loading-bar" />
     <div class="app-workspace" :class="{ 'app-workspace--auth': !showNavigation }">
       <AppSidebar v-if="showNavigation" />
-      <main class="app-content-scroll">
+      <main
+        ref="contentScroller"
+        class="app-content-scroll"
+        @pointerleave="handleScrollerPointerLeave"
+        @pointermove="handleScrollerPointerMove"
+        @scroll.passive="showScrollbarTemporarily"
+      >
         <router-view v-slot="{ Component, route: currentRoute }">
           <transition name="fade" mode="out-in">
             <div :key="currentRoute.name" class="app-page-wrap">
@@ -59,9 +122,10 @@ const showNavigation = computed(() => route.path !== "/oauth");
   border: 1px solid var(--app-border);
   border-radius: 14px;
   background: var(--app-surface);
+  clip-path: inset(0 round 14px);
 }
 
-.app-workspace--auth .app-content-scroll { height: 100%; border: 0; border-radius: 0; }
+.app-workspace--auth .app-content-scroll { height: 100%; border: 0; border-radius: 0; clip-path: none; }
 
 .app-content-scroll.is-modal-open { overflow: hidden; }
 
@@ -105,6 +169,6 @@ const showNavigation = computed(() => route.path !== "/oauth");
 }
 @media (max-width: 640px) {
   .app-workspace:not(.app-workspace--auth) { padding: 0; }
-  .app-workspace:not(.app-workspace--auth) .app-content-scroll { padding-bottom: 58px; border: 0; border-radius: 0; }
+  .app-workspace:not(.app-workspace--auth) .app-content-scroll { padding-bottom: 58px; border: 0; border-radius: 0; clip-path: none; }
 }
 </style>

@@ -2,7 +2,12 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Banner, Button, Card, Tag } from "@kousum/semi-ui-vue";
-import { IconPlay, IconRefresh, IconStop, IconTerminal } from "@kousum/semi-icons-vue";
+import {
+  Play as IconPlay,
+  RefreshCw as IconRefresh,
+  Square as IconStop,
+  Terminal as IconTerminal,
+} from "lucide-vue-next";
 import {
   getRunnerData,
   getRunnerRuntimeStatus,

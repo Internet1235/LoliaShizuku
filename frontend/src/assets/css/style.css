@@ -24,6 +24,9 @@ body {
   --app-text: #737373;
   --app-text-strong: #242424;
   --app-accent: #315efb;
+  --app-scrollbar-track: #e4e4e4;
+  --app-scrollbar-thumb: #9b9b9b;
+  --app-scrollbar-thumb-hover: #7e7e7e;
   --app-radius-control: 8px;
   --app-radius-panel: 10px;
   --semi-color-primary: #315efb;
@@ -43,6 +46,9 @@ body[theme-mode="dark"] {
   --app-text: #a4a4a4;
   --app-text-strong: #eeeeee;
   --app-accent: #4d74ff;
+  --app-scrollbar-track: #202020;
+  --app-scrollbar-thumb: #4a4a4a;
+  --app-scrollbar-thumb-hover: #5c5c5c;
   --semi-color-primary: #4d74ff;
   --semi-color-primary-hover: #6688ff;
   --semi-color-primary-active: #365fe9;
@@ -52,6 +58,63 @@ body {
   background: var(--app-bg);
   color: var(--app-text-strong);
   font-family: "Roboto", sans-serif;
+}
+
+@property --app-scrollbar-thumb-color {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  min-height: 40px;
+  border-radius: 999px;
+  background: var(--app-scrollbar-thumb-color, transparent);
+}
+
+.app-content-scroll {
+  --app-scrollbar-thumb-color: transparent;
+  transition: --app-scrollbar-thumb-color 220ms ease;
+}
+
+.app-content-scroll.is-scrollbar-visible {
+  --app-scrollbar-thumb-color: var(--app-scrollbar-thumb);
+}
+
+.app-content-scroll.is-scrollbar-hovered {
+  --app-scrollbar-thumb-color: var(--app-scrollbar-thumb-hover);
+}
+*::-webkit-scrollbar-button:single-button {
+  display: block;
+  width: 8px;
+  height: 8px;
+  background: transparent;
+}
+*::-webkit-scrollbar-corner { background: transparent; }
+
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-color: transparent transparent;
+    scrollbar-width: thin;
+    transition: scrollbar-color 220ms ease;
+  }
+
+  .app-content-scroll.is-scrollbar-visible {
+    scrollbar-color: var(--app-scrollbar-thumb) transparent;
+  }
+
+  .app-content-scroll.is-scrollbar-hovered {
+    scrollbar-color: var(--app-scrollbar-thumb-hover) transparent;
+  }
 }
 
 button, input, textarea, select { font: inherit; }

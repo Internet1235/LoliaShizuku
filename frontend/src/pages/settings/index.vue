@@ -4,18 +4,18 @@ import { useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { Banner, Button, Card, Progress, Tag } from "@kousum/semi-ui-vue";
 import {
-  IconCloud,
-  IconCopy,
-  IconDelete,
-  IconDownload,
-  IconExternalOpen,
-  IconGithubLogo,
-  IconInfoCircle,
-  IconColorPalette,
-  IconRefresh,
-  IconStop,
-  IconUser,
-} from "@kousum/semi-icons-vue";
+  Cloud as IconCloud,
+  Copy as IconCopy,
+  Download as IconDownload,
+  ExternalLink as IconExternalOpen,
+  Github as IconGithubLogo,
+  Info as IconInfoCircle,
+  Palette as IconColorPalette,
+  RefreshCw as IconRefresh,
+  Square as IconStop,
+  Trash2 as IconDelete,
+  UserRound as IconUser,
+} from "lucide-vue-next";
 import AppLogo from "@/components/AppLogo.vue";
 import { useGlobalLoadingStore } from "@/stores/globalLoading";
 import { useNotificationStore, type NotificationType } from "@/stores/notification";

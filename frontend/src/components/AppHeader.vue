@@ -11,10 +11,7 @@ import {
 import AppLogo from "./AppLogo.vue";
 import { isWails } from "@/services/platform";
 import { Button, Tooltip } from "@kousum/semi-ui-vue";
-import {
-  IconClose,
-  IconMinus,
-} from "@kousum/semi-icons-vue";
+import { Minus as IconMinus, Square as IconMaximize, X as IconClose } from "lucide-vue-next";
 
 const maximised = ref(false);
 
@@ -68,7 +65,7 @@ function handleClose() {
 
     <div v-if="isWails()" class="window-controls">
       <Tooltip content="最小化"><Button theme="borderless" type="tertiary" icon @click="handleMinimize"><IconMinus /></Button></Tooltip>
-      <Tooltip :content="maximised ? '还原' : '最大化'"><Button theme="borderless" type="tertiary" icon @click="handleMaximize"><span class="maximise-icon" /></Button></Tooltip>
+      <Tooltip :content="maximised ? '还原' : '最大化'"><Button theme="borderless" type="tertiary" icon @click="handleMaximize"><IconMaximize /></Button></Tooltip>
       <Tooltip content="关闭"><Button class="close-button" theme="borderless" type="tertiary" icon @click="handleClose"><IconClose /></Button></Tooltip>
     </div>
   </header>
@@ -79,7 +76,6 @@ function handleClose() {
 .brand { display: flex; align-items: center; gap: 9px; min-width: 0; color: var(--app-text-strong); }
 .brand strong { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
 .window-controls { display: flex; justify-self: end; align-items: center; gap: 2px; --wails-draggable: no-drag; }
-.maximise-icon { display: block; width: 12px; height: 12px; border: 1.5px solid currentColor; box-sizing: border-box; }
 .close-button:hover { color: #fff !important; background: #d7373f !important; }
 @media (max-width: 620px) {
   .app-header { padding-left: 12px; }

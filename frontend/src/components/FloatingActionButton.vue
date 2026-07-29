@@ -3,7 +3,7 @@ import { onBeforeUnmount, onMounted, computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { getRunnerRuntimeStatus } from "@/services/center";
 import { Button, Tooltip } from "@kousum/semi-ui-vue";
-import { IconTerminal } from "@kousum/semi-icons-vue";
+import { Terminal as IconTerminal } from "lucide-vue-next";
 
 const route = useRoute();
 const runnerRunning = ref(false);

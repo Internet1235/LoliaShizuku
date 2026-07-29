@@ -1209,12 +1209,10 @@ onBeforeUnmount(() => {
   .tunnel-row { grid-template-columns: 48px minmax(0, 1fr) auto; gap: 12px; padding: 12px; }
   .protocol-mark { width: 44px; height: 48px; }
   .row-field, .traffic-meta { display: none; }
-  .tunnel-actions > .tunnel-toggle-button { display: none; }
   .list-summary { text-align: left; }
   .detail-summary { grid-template-columns: auto minmax(0, 1fr) auto; margin: 0 16px 14px; padding: 12px; }
   .detail-summary > :deep(.semi-tag) { grid-column: 2; justify-self: start; }
   .detail-actions { grid-row: 1 / span 2; grid-column: 3; }
-  .detail-actions > .tunnel-toggle-button { display: none; }
   .detail-tabs { padding: 0 16px; }
   .detail-error { margin-right: 16px; margin-left: 16px; }
   .detail-content, .detail-settings-content { padding: 18px 16px 22px; }
@@ -1229,7 +1227,6 @@ onBeforeUnmount(() => {
   .form-section { padding: 14px; }
   .create-form-content { padding-right: 16px; padding-left: 16px; }
   .modal-actions { padding-right: 16px; padding-left: 16px; }
-  :global(.tunnel-action-popup .mobile-tunnel-action) { display: flex; }
   .delete-confirmation { padding: 24px; }
   .delete-confirmation p, .delete-confirmation-actions { margin-top: 22px; }
   .delete-confirmation-actions :deep(.semi-button) { min-width: 96px; }

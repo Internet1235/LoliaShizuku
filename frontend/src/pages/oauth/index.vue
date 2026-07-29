@@ -5,7 +5,7 @@ import { beginOAuthLogin } from "@/services/auth";
 import { isWails } from "@/services/platform";
 import { useNotificationStore } from "@/stores/notification";
 import { Button } from "@kousum/semi-ui-vue";
-import { IconArrowRight } from "@kousum/semi-icons-vue";
+import { ArrowRight as IconArrowRight } from "lucide-vue-next";
 
 defineOptions({
   name: "OAuthPage",

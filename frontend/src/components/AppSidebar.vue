@@ -38,7 +38,6 @@ const navigation = [
   min-width: 208px;
   height: 100%;
   padding: 18px 12px 14px;
-  border-right: 1px solid var(--app-border);
   box-sizing: border-box;
   background: var(--app-sidebar);
 }

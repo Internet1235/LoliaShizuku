@@ -10,7 +10,11 @@ import {
 } from "@unovis/vue";
 import { useElementSize } from "@vueuse/core";
 import { Avatar, Card, Tag } from "@kousum/semi-ui-vue";
-import { IconActivity, IconHistogram, IconServer } from "@kousum/semi-icons-vue";
+import {
+  Activity as IconActivity,
+  ChartNoAxesColumn as IconHistogram,
+  Server as IconServer,
+} from "lucide-vue-next";
 import {
   getDashboard,
   getTrafficDaily,
