@@ -3,7 +3,6 @@ import { computed } from "vue";
 import { useRoute } from "vue-router";
 import AppHeader from "./components/AppHeader.vue";
 import AppSidebar from "./components/AppSidebar.vue";
-import FloatingActionButton from "./components/FloatingActionButton.vue";
 import { useGlobalLoadingStore } from "@/stores/globalLoading";
 
 const globalLoadingStore = useGlobalLoadingStore();
@@ -27,7 +26,6 @@ const showNavigation = computed(() => route.path !== "/oauth");
         </router-view>
       </main>
     </div>
-    <FloatingActionButton v-if="showNavigation" />
   </div>
 </template>
 
@@ -51,6 +49,8 @@ const showNavigation = computed(() => route.path !== "/oauth");
   overflow-y: auto;
   background: var(--app-surface);
 }
+
+.app-content-scroll.is-modal-open { overflow: hidden; }
 
 .app-page-wrap {
   width: 100%;

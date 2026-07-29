@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, h, onMounted, reactive, ref } from "vue";
-import { useRouter } from "vue-router";
+import { computed, h, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { Banner, Button, Dropdown, Empty, Input, Modal, Tag, type DropDownMenuItem } from "@kousum/semi-ui-vue";
 import IconArrowDown from "~icons/lucide/arrow-down";
 import IconArrowUp from "~icons/lucide/arrow-up";
@@ -25,6 +24,7 @@ import {
   getNodes,
   getRunnerRuntimeStatus,
   getTunnelDetail,
+  getTunnelRunnerRuntimeStatus,
   getTunnelsOverview,
   startRunner,
   stopTunnelRunner,
@@ -67,7 +67,6 @@ const createForm = reactive<Omit<CreateTunnelInput, "local_port" | "remote_port"
 const globalLoadingStore = useGlobalLoadingStore();
 const withGlobalLoading = <T,>(task: () => Promise<T>) =>
   globalLoadingStore.withGlobalLoading(task);
-const router = useRouter();
 const runnerStatus = ref<RunnerRuntimeStatus>({
   running: false,
   pid: 0,
@@ -86,6 +85,13 @@ const detailSaving = ref(false);
 const detailError = ref("");
 const detailTab = ref<"overview" | "settings">("overview");
 const tunnelDetail = ref<TunnelDetailData | null>(null);
+const logModalVisible = ref(false);
+const logLoading = ref(false);
+const logError = ref("");
+const logTunnelName = ref("");
+const logTunnelRemark = ref("");
+const logStatus = ref<RunnerRuntimeStatus | null>(null);
+let logRefreshTimer: ReturnType<typeof setInterval> | null = null;
 const detailForm = reactive<UpdateTunnelInput>({
   local_ip: "",
   local_port: 0,
@@ -131,6 +137,11 @@ const availableNodes = computed(() => nodes.value.filter((node) => {
 const isNodeOnline = (node: NodeItem) => ["online", "active"].includes(node.status.toLowerCase());
 const selectedNode = computed(() => nodes.value.find((node) => node.id === createForm.node_id));
 const isDetailWebProtocol = computed(() => ["http", "https"].includes(detailForm.config.protocol));
+const hasOpenModal = computed(() => detailModalVisible.value || createModalVisible.value || logModalVisible.value);
+
+watch(hasOpenModal, (visible) => {
+  document.querySelector<HTMLElement>(".app-content-scroll")?.classList.toggle("is-modal-open", visible);
+});
 
 const toggleActionMenu = (menuKey: string) => {
   actionMenuKey.value = actionMenuKey.value === menuKey ? "" : menuKey;
@@ -437,7 +448,6 @@ const handleStartTunnel = async (tunnelName: string) => {
   try {
     runnerStatus.value = await startRunner([tunnelName]);
     await loadTunnels();
-    await router.push("/runner");
   } catch (error) {
     errorMessage.value =
       error instanceof Error ? error.message : "启动隧道失败，请稍后重试";
@@ -477,7 +487,6 @@ const handleRestartTunnel = async (tunnelName: string) => {
     await stopTunnelRunner(tunnelName);
     runnerStatus.value = await startRunner([tunnelName]);
     await loadTunnels();
-    await router.push("/runner");
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : "重启隧道失败，请稍后重试";
   } finally {
@@ -485,9 +494,42 @@ const handleRestartTunnel = async (tunnelName: string) => {
   }
 };
 
-const openRunnerView = async (tunnelName: string) => {
+const clearLogRefreshTimer = () => {
+  if (logRefreshTimer) {
+    clearInterval(logRefreshTimer);
+    logRefreshTimer = null;
+  }
+};
+
+const refreshTunnelLog = async () => {
+  if (!logTunnelName.value) return;
+
+  try {
+    logStatus.value = await getTunnelRunnerRuntimeStatus(logTunnelName.value);
+    logError.value = "";
+  } catch (error) {
+    logError.value = error instanceof Error ? error.message : "获取运行日志失败";
+  } finally {
+    logLoading.value = false;
+  }
+};
+
+const openTunnelLog = async (tunnel: TunnelOverviewItem) => {
   closeActionMenu();
-  await router.push({ path: "/runner", query: { tunnel: tunnelName } });
+  clearLogRefreshTimer();
+  logTunnelName.value = tunnel.name;
+  logTunnelRemark.value = tunnel.remark || tunnel.name;
+  logStatus.value = null;
+  logError.value = "";
+  logLoading.value = true;
+  logModalVisible.value = true;
+  await refreshTunnelLog();
+  logRefreshTimer = setInterval(() => void refreshTunnelLog(), 2000);
+};
+
+const closeTunnelLog = () => {
+  logModalVisible.value = false;
+  clearLogRefreshTimer();
 };
 
 const getTunnelActionMenu = (tunnel: TunnelOverviewItem): DropDownMenuItem[] => [
@@ -506,11 +548,16 @@ const getTunnelActionMenu = (tunnel: TunnelOverviewItem): DropDownMenuItem[] => 
     onClick: () => void handleStopTunnel(tunnel.name),
   }] : []),
   { node: "item", name: "详情", icon: h(IconInfoCircle), onClick: () => { closeActionMenu(); void openTunnelDetail(tunnel.name); } },
-  { node: "item", name: "运行日志", icon: h(IconFile), onClick: () => void openRunnerView(tunnel.name) },
+  { node: "item", name: "运行日志", icon: h(IconFile), onClick: () => void openTunnelLog(tunnel) },
 ];
 
 onMounted(() => {
   void loadTunnels();
+});
+
+onBeforeUnmount(() => {
+  clearLogRefreshTimer();
+  document.querySelector<HTMLElement>(".app-content-scroll")?.classList.remove("is-modal-open");
 });
 
 </script>
@@ -646,13 +693,14 @@ onMounted(() => {
 
     <Modal
       :visible="detailModalVisible"
-      :footer="null"
+      centered
       :mask-closable="!detailSaving"
       title="隧道详情"
       :width="900"
       :body-style="{ padding: '0' }"
       @cancel="closeDetailModal"
     >
+      <template #footer></template>
       <div class="detail-modal">
         <div v-if="detailLoading" class="detail-state">正在加载隧道详情...</div>
         <template v-else-if="tunnelDetail">
@@ -780,13 +828,14 @@ onMounted(() => {
 
     <Modal
       :visible="createModalVisible"
-      :footer="null"
+      centered
       :mask-closable="!creatingTunnel"
       title="创建隧道"
       :width="720"
       :body-style="{ padding: '0', overflow: 'hidden' }"
       @cancel="closeCreateModal"
     >
+      <template #footer></template>
       <form class="create-form" @submit.prevent="handleCreateTunnel">
         <div class="create-form-content">
           <p class="modal-description">将本地服务安全地映射到 Lolia FRP 节点</p>
@@ -902,6 +951,29 @@ onMounted(() => {
         </div>
       </form>
     </Modal>
+
+    <Modal
+      :visible="logModalVisible"
+      centered
+      :mask-closable="true"
+      :title="`${logTunnelRemark} · 运行日志`"
+      :width="760"
+      :body-style="{ padding: '0' }"
+      @cancel="closeTunnelLog"
+    >
+      <template #footer></template>
+      <div class="tunnel-log-modal">
+        <div class="tunnel-log-meta">
+          <span>{{ logTunnelName }}</span>
+          <Tag :color="logStatus?.running ? 'green' : 'grey'" type="light">
+            {{ logStatus?.running ? "运行中" : "未运行" }}
+          </Tag>
+        </div>
+        <div v-if="logLoading" class="tunnel-log-state">正在读取运行日志...</div>
+        <Banner v-else-if="logError" type="danger" :description="logError" />
+        <pre v-else class="tunnel-log-output">{{ logStatus?.log_lines?.join("\n") || "暂无运行日志" }}</pre>
+      </div>
+    </Modal>
   </div>
 </template>
 
@@ -917,8 +989,8 @@ onMounted(() => {
 .tunnel-toolbar :deep(.semi-button-content), .tunnel-actions :deep(.semi-button-content),
 .traffic-meta span, .modal-actions :deep(.semi-button-content), .detail-actions :deep(.semi-button-content),
 .detail-savebar :deep(.semi-button-content), .row-node strong { display: flex; align-items: center; gap: 6px; }
-.tunnel-list { overflow: hidden; border: 1px solid var(--app-border); border-radius: var(--app-radius-panel); background: var(--app-surface); }
-.tunnel-row { display: grid; min-height: 82px; grid-template-columns: 66px minmax(150px, 1.15fr) minmax(110px, .8fr) minmax(130px, .9fr) minmax(130px, .9fr) 118px auto; align-items: center; gap: 16px; box-sizing: border-box; padding: 12px 16px; border-bottom: 1px solid var(--app-border); outline: none; cursor: pointer; transition: background .16s; }
+.tunnel-list { display: flex; flex-direction: column; gap: 14px; }
+.tunnel-row { display: grid; min-height: 82px; grid-template-columns: 66px minmax(150px, 1.15fr) minmax(110px, .8fr) minmax(130px, .9fr) minmax(130px, .9fr) 118px auto; align-items: center; gap: 16px; box-sizing: border-box; padding: 12px 16px; border: 1px solid var(--app-border); border-radius: var(--app-radius-panel); outline: none; background: var(--app-surface); cursor: pointer; transition: border-color .16s, background .16s; }
 .tunnel-row:hover, .tunnel-row:focus-visible { background: var(--app-surface-muted); }
 .protocol-mark { display: grid; width: 52px; height: 52px; grid-template-rows: 1fr auto; place-items: center; border-radius: var(--app-radius-control); background: color-mix(in srgb, var(--app-accent) 10%, transparent); color: var(--app-accent); }
 .protocol-mark span { padding-bottom: 5px; font-size: 9px; font-weight: 800; line-height: 1; }
@@ -936,13 +1008,16 @@ onMounted(() => {
 .traffic-meta { flex-direction: column; align-items: flex-start; gap: 7px; color: var(--app-text); font-size: 11px; }
 .traffic-meta span:first-child { color: #168f63; }
 .traffic-meta span:last-child { color: #2764e7; }
-.tunnel-actions { justify-content: flex-end; padding: 4px; border: 1px solid var(--app-border); border-radius: var(--app-radius-panel); background: var(--app-surface); }
+.tunnel-actions { justify-content: flex-end; gap: 12px; }
 .tunnel-toggle-button { width: 38px; height: 38px; padding: 0; border: 1px solid transparent; border-radius: var(--app-radius-control); background: transparent; color: var(--app-text); }
-.tunnel-toggle-button.is-start:hover:not(:disabled), .tunnel-toggle-button.is-start:focus-visible:not(:disabled), .tunnel-toggle-button.is-start:active:not(:disabled) { border-color: color-mix(in srgb, var(--app-accent) 28%, transparent); background: color-mix(in srgb, var(--app-accent) 12%, var(--app-surface)); color: var(--app-accent); }
-.tunnel-toggle-button.is-stop:hover:not(:disabled), .tunnel-toggle-button.is-stop:focus-visible:not(:disabled), .tunnel-toggle-button.is-stop:active:not(:disabled) { border-color: color-mix(in srgb, #e5484d 28%, transparent); background: color-mix(in srgb, #e5484d 12%, var(--app-surface)); color: #d9363e; }
+.tunnel-toggle-button.is-start:hover:not(:disabled), .tunnel-toggle-button.is-start:focus-visible:not(:disabled) { border-color: color-mix(in srgb, var(--app-accent) 28%, transparent); background: color-mix(in srgb, var(--app-accent) 12%, var(--app-surface)); color: var(--app-accent); }
+.tunnel-toggle-button.is-start:active:not(:disabled) { border-color: var(--app-accent); background: transparent; color: var(--app-accent); }
+.tunnel-toggle-button.is-stop:hover:not(:disabled), .tunnel-toggle-button.is-stop:focus-visible:not(:disabled) { border-color: color-mix(in srgb, #e5484d 28%, transparent); background: color-mix(in srgb, #e5484d 12%, var(--app-surface)); color: #d9363e; }
+.tunnel-toggle-button.is-stop:active:not(:disabled) { border-color: #e5484d; background: transparent; color: #d9363e; }
 .more-action-button { width: 38px; height: 38px; border-radius: var(--app-radius-control); }
-.more-action-button:hover, .more-action-button:focus-visible { background: var(--app-surface-muted); }
-.list-summary { padding: 11px 16px; color: var(--app-text); font-size: 12px; text-align: right; }
+.more-action-button:hover { background: var(--app-surface-muted); }
+.more-action-button:focus-visible, .more-action-button:active { background: transparent; }
+.list-summary { padding: 0 2px; color: var(--app-text); font-size: 12px; text-align: right; }
 .empty-card { padding: 56px 20px; border: 1px solid var(--app-border); border-radius: var(--app-radius-panel); background: var(--app-surface); }
 .detail-modal { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow: hidden; color: var(--app-text-strong); }
 .detail-state { display: grid; min-height: 320px; place-items: center; color: var(--app-text); font-size: 13px; }
@@ -998,7 +1073,7 @@ onMounted(() => {
 .node-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .node-option { min-width: 0; padding: 13px; border: 1px solid var(--app-border); border-radius: var(--app-radius-control); background: var(--app-surface); color: var(--app-text-strong); text-align: left; cursor: pointer; transition: border-color .16s, background .16s, box-shadow .16s; }
 .node-option:hover:not(:disabled) { border-color: #1677ff; }
-.node-option.selected { border-color: #1677ff; background: rgba(22, 119, 255, .06); box-shadow: 0 0 0 2px rgba(22, 119, 255, .1); }
+.node-option.selected { border-color: var(--app-accent); background: var(--app-surface); box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-accent) 10%, transparent); }
 .node-option.offline { cursor: not-allowed; opacity: .58; }
 .node-option-main { display: flex; min-width: 0; flex-direction: column; gap: 8px; }
 .node-name-row, .node-meta, .node-protocols { display: flex; align-items: center; gap: 7px; }
@@ -1013,11 +1088,17 @@ onMounted(() => {
 :global(.semi-modal-content:has(.create-form)) { display: flex; max-height: calc(100dvh - 48px); flex-direction: column; overflow: hidden; border-radius: var(--app-radius-panel); background: var(--app-surface); }
 :global(.semi-modal-content:has(.create-form) .semi-modal-header) { margin-bottom: 16px; }
 :global(.semi-modal-content:has(.create-form) .semi-modal-body) { display: flex; min-height: 0; flex: 1; overflow: hidden; }
-:global(.semi-modal:has(.create-form)) { top: 24px !important; width: 720px !important; max-width: calc(100vw - 48px); margin-top: 0 !important; }
+:global(.semi-modal:has(.create-form)) { width: 720px !important; max-width: calc(100vw - 48px); margin: 24px auto !important; }
 :global(.semi-modal-content:has(.detail-modal)) { display: flex; max-height: calc(100dvh - 48px); flex-direction: column; overflow: hidden; border-radius: var(--app-radius-panel); background: var(--app-surface); }
 :global(.semi-modal-content:has(.detail-modal) .semi-modal-header) { margin-bottom: 14px; }
 :global(.semi-modal-content:has(.detail-modal) .semi-modal-body) { display: flex; min-height: 0; flex: 1; overflow: hidden; }
-:global(.semi-modal:has(.detail-modal)) { top: 24px !important; width: 900px !important; max-width: calc(100vw - 48px); margin-top: 0 !important; }
+:global(.semi-modal:has(.detail-modal)) { width: 900px !important; max-width: calc(100vw - 48px); margin: 24px auto !important; }
+.tunnel-log-modal { display: flex; min-height: 260px; max-height: calc(100dvh - 160px); flex-direction: column; gap: 12px; overflow: hidden; }
+.tunnel-log-meta { display: flex; align-items: center; justify-content: space-between; padding: 0 20px; color: var(--app-text); font-size: 12px; }
+.tunnel-log-state { display: grid; min-height: 260px; place-items: center; color: var(--app-text); }
+.tunnel-log-output { min-height: 260px; margin: 0; padding: 16px 20px; overflow: auto; background: #101216; color: #d7dce2; font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+:global(.semi-modal-content:has(.tunnel-log-modal)) { overflow: hidden; border-radius: var(--app-radius-panel); background: var(--app-surface); }
+:global(.semi-modal:has(.tunnel-log-modal)) { width: 760px !important; max-width: calc(100vw - 48px); margin: 24px auto !important; }
 :global(.tunnel-action-popup) { padding: 6px 0 !important; border: 1px solid var(--app-border); border-radius: var(--app-radius-panel); background: var(--app-surface); box-shadow: 0 8px 24px rgba(20, 24, 31, .14); }
 :global(.tunnel-action-popup .semi-dropdown-menu), :global(.tunnel-action-menu) { min-width: 138px; padding: 0; background: transparent; }
 :global(.tunnel-action-popup .semi-dropdown-item), :global(.tunnel-action-menu .semi-dropdown-item) { display: flex; height: 42px; box-sizing: border-box; align-items: center; gap: 12px; margin: 0; padding: 0 14px; border-radius: 0; color: var(--app-text-strong); font-size: 14px; line-height: 42px; white-space: nowrap; }
@@ -1053,7 +1134,7 @@ onMounted(() => {
   .detail-table { grid-template-columns: 1fr; }
   .detail-table > div { grid-template-columns: 86px minmax(0, 1fr) auto; }
   .detail-savebar { bottom: -22px; margin-right: -16px; margin-bottom: -22px; margin-left: -16px; padding-right: 16px; padding-left: 16px; }
-  :global(.semi-modal:has(.create-form)), :global(.semi-modal:has(.detail-modal)) { top: 12px !important; max-width: calc(100vw - 24px); }
+  :global(.semi-modal:has(.create-form)), :global(.semi-modal:has(.detail-modal)), :global(.semi-modal:has(.tunnel-log-modal)) { max-width: calc(100vw - 24px); margin: 12px auto !important; }
   :global(.semi-modal-content:has(.create-form)), :global(.semi-modal-content:has(.detail-modal)) { max-height: calc(100dvh - 24px); }
   .form-grid, .single-field { grid-template-columns: 1fr; }
   .node-list { grid-template-columns: 1fr; }

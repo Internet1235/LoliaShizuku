@@ -75,7 +75,12 @@ button, input, textarea, select { font: inherit; }
 }
 
 .semi-button-light:active:not(:disabled) {
-  background: var(--app-nav-hover);
+  background: var(--app-surface);
+}
+
+.semi-button-borderless:active:not(:disabled),
+.semi-button-borderless:focus:not(:focus-visible) {
+  background: transparent;
 }
 
 .semi-button-solid.semi-button-primary {

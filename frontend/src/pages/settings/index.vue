@@ -600,7 +600,7 @@ onBeforeUnmount(() => {
 .nav-label { padding: 8px 12px; color: var(--app-text); font-size: 11px; font-weight: 700; text-transform: uppercase; }
 .settings-nav button { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 0 12px; border: 0; border-radius: var(--app-radius-control); color: var(--app-text); background: transparent; cursor: pointer; text-align: left; transition: color .16s ease, background .16s ease; }
 .settings-nav button:hover, .settings-nav button:focus-visible { color: var(--app-text-strong); background: var(--app-nav-hover); outline: none; }
-.settings-nav button.active { color: var(--app-accent); background: color-mix(in srgb, var(--app-accent) 10%, transparent); font-weight: 600; }
+.settings-nav button.active { color: var(--app-accent); background: transparent; font-weight: 600; }
 .settings-content { min-width: 0; overflow: hidden; border-radius: var(--app-radius-panel); background: var(--app-surface); border-color: var(--app-border); }
 .settings-heading { display: flex; align-items: center; justify-content: space-between; min-height: 62px; padding: 0 22px; border-bottom: 1px solid var(--app-border); }
 .settings-heading h1 { margin: 0; color: var(--app-text-strong); font-size: 18px; letter-spacing: 0; }

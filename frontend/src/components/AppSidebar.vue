@@ -3,13 +3,11 @@ import {
   IconHome,
   IconServer,
   IconSetting,
-  IconTerminal,
 } from "@kousum/semi-icons-vue";
 
 const navigation = [
   { to: "/", label: "首页", icon: IconHome },
   { to: "/tunnels", label: "隧道", icon: IconServer },
-  { to: "/runner", label: "Runner", icon: IconTerminal },
   { to: "/settings", label: "设置", icon: IconSetting },
 ];
 </script>
@@ -72,7 +70,7 @@ const navigation = [
 .sidebar-link:hover { color: var(--app-text-strong); background: var(--app-nav-hover); }
 .sidebar-link.router-link-active {
   color: var(--app-accent);
-  background: var(--app-nav-active);
+  background: transparent;
 }
 .sidebar-icon { flex: 0 0 auto; font-size: 17px; }
 .sidebar-meta { display: flex; flex-direction: column; gap: 2px; margin-top: auto; padding: 12px 10px 2px; color: var(--app-text); }

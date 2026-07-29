@@ -19,8 +19,7 @@ const routes = [
   },
   {
     path: '/runner',
-    name: 'runner',
-    component: () => import('@/pages/runner/index.vue')
+    redirect: '/tunnels'
   },
   {
     path: '/settings',
