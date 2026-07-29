@@ -215,6 +215,7 @@ const openCreateModal = async () => {
     selectFirstAvailableNode();
   } catch (error) {
     createError.value = error instanceof Error ? error.message : "加载节点失败，请稍后重试";
+    notificationStore.error(createError.value);
   } finally {
     loadingNodes.value = false;
   }
@@ -242,7 +243,10 @@ const validateCreateForm = () => {
 
 const handleCreateTunnel = async () => {
   createError.value = validateCreateForm();
-  if (createError.value) return;
+  if (createError.value) {
+    notificationStore.error(createError.value);
+    return;
+  }
 
   creatingTunnel.value = true;
   try {
@@ -254,9 +258,9 @@ const handleCreateTunnel = async () => {
       remark: createForm.remark.trim(),
       remote_port: isWebProtocol.value ? 0 : (createForm.remote_port ?? 0),
     });
+    await loadTunnels();
     createModalVisible.value = false;
     notificationStore.success("隧道创建成功");
-    await loadTunnels();
   } catch (error) {
     createError.value = error instanceof Error ? error.message : "创建隧道失败，请稍后重试";
     notificationStore.error(createError.value);
@@ -401,7 +405,10 @@ const validateDetailForm = () => {
 const handleUpdateTunnel = async () => {
   if (!tunnelDetail.value) return;
   detailError.value = validateDetailForm();
-  if (detailError.value) return;
+  if (detailError.value) {
+    notificationStore.error(detailError.value);
+    return;
+  }
 
   detailSaving.value = true;
   try {
@@ -412,12 +419,9 @@ const handleUpdateTunnel = async () => {
       remark: detailForm.remark.trim(),
       config: { ...detailForm.config },
     });
-    const detail = await getTunnelDetail(tunnelDetail.value.name);
-    tunnelDetail.value = detail;
-    fillDetailForm(detail);
     await loadTunnels();
+    detailModalVisible.value = false;
     notificationStore.success("隧道设置已保存");
-    detailTab.value = "overview";
   } catch (error) {
     detailError.value = error instanceof Error ? error.message : "保存隧道设置失败";
     notificationStore.error(detailError.value);
@@ -687,6 +691,7 @@ onBeforeUnmount(() => {
 
     <Modal
       :visible="detailModalVisible"
+      :footer="null"
       centered
       :mask-closable="!detailSaving"
       title="隧道详情"
@@ -694,7 +699,6 @@ onBeforeUnmount(() => {
       :body-style="{ padding: '0' }"
       @cancel="closeDetailModal"
     >
-      <template #footer></template>
       <div class="detail-modal">
         <div v-if="detailLoading" class="detail-state">正在加载隧道详情...</div>
         <template v-else-if="tunnelDetail">
@@ -752,8 +756,6 @@ onBeforeUnmount(() => {
             <button :class="{ active: detailTab === 'overview' }" @click="detailTab = 'overview'">信息概览</button>
             <button :class="{ active: detailTab === 'settings' }" @click="detailTab = 'settings'">设置</button>
           </nav>
-
-          <Banner v-if="detailError" class="detail-error" type="danger" :description="detailError" />
 
           <div v-if="detailTab === 'overview'" class="detail-content">
             <section class="detail-section">
@@ -824,6 +826,7 @@ onBeforeUnmount(() => {
 
     <Modal
       :visible="createModalVisible"
+      :footer="null"
       centered
       :mask-closable="!creatingTunnel"
       title="创建隧道"
@@ -831,11 +834,9 @@ onBeforeUnmount(() => {
       :body-style="{ padding: '0', overflow: 'hidden' }"
       @cancel="closeCreateModal"
     >
-      <template #footer></template>
       <form class="create-form" @submit.prevent="handleCreateTunnel">
         <div class="create-form-content">
           <p class="modal-description">将本地服务安全地映射到 Lolia FRP 节点</p>
-          <Banner v-if="createError" type="danger" :description="createError" />
 
           <section class="form-section">
             <div class="section-heading">
@@ -950,6 +951,7 @@ onBeforeUnmount(() => {
 
     <Modal
       :visible="logModalVisible"
+      :footer="null"
       centered
       :mask-closable="true"
       :title="`${logTunnelRemark} · 运行日志`"
@@ -957,7 +959,6 @@ onBeforeUnmount(() => {
       :body-style="{ padding: '0' }"
       @cancel="closeTunnelLog"
     >
-      <template #footer></template>
       <div class="tunnel-log-modal">
         <div class="tunnel-log-meta">
           <span>{{ logTunnelName }}</span>
