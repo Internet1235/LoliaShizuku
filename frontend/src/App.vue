@@ -42,15 +42,26 @@ const showNavigation = computed(() => route.path !== "/oauth");
   opacity: 0;
 }
 
-.app-workspace { display: flex; height: calc(100vh - 48px); min-height: 0; }
-.app-workspace--auth { display: block; }
+.app-workspace {
+  display: flex;
+  height: calc(100vh - 48px);
+  min-height: 0;
+  padding: 12px 12px 12px 0;
+  box-sizing: border-box;
+  background: var(--app-sidebar);
+}
+.app-workspace--auth { display: block; padding: 0; }
 .app-content-scroll {
   min-width: 0;
-  height: 100%;
+  min-height: 0;
   flex: 1;
   overflow-y: auto;
+  border: 1px solid var(--app-border);
+  border-radius: 14px;
   background: var(--app-surface);
 }
+
+.app-workspace--auth .app-content-scroll { height: 100%; border: 0; border-radius: 0; }
 
 .app-content-scroll.is-modal-open { overflow: hidden; }
 
@@ -93,6 +104,7 @@ const showNavigation = computed(() => route.path !== "/oauth");
   .app-page-wrap { padding: 16px; }
 }
 @media (max-width: 640px) {
-  .app-workspace:not(.app-workspace--auth) .app-content-scroll { padding-bottom: 58px; }
+  .app-workspace:not(.app-workspace--auth) { padding: 0; }
+  .app-workspace:not(.app-workspace--auth) .app-content-scroll { padding-bottom: 58px; border: 0; border-radius: 0; }
 }
 </style>

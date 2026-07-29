@@ -1,14 +1,10 @@
 <script setup lang="ts">
-import {
-  IconHome,
-  IconServer,
-  IconSetting,
-} from "@kousum/semi-icons-vue";
+import { LayoutGrid, Network, Settings } from "lucide-vue-next";
 
 const navigation = [
-  { to: "/", label: "首页", icon: IconHome },
-  { to: "/tunnels", label: "隧道", icon: IconServer },
-  { to: "/settings", label: "设置", icon: IconSetting },
+  { to: "/", label: "概览", icon: LayoutGrid },
+  { to: "/tunnels", label: "隧道", icon: Network },
+  { to: "/settings", label: "设置", icon: Settings },
 ];
 </script>
 
@@ -70,7 +66,7 @@ const navigation = [
 .sidebar-link:hover { color: var(--app-text-strong); background: var(--app-nav-hover); }
 .sidebar-link.router-link-active {
   color: var(--app-accent);
-  background: transparent;
+  background: var(--app-nav-active);
 }
 .sidebar-icon { flex: 0 0 auto; font-size: 17px; }
 .sidebar-meta { display: flex; flex-direction: column; gap: 2px; margin-top: auto; padding: 12px 10px 2px; color: var(--app-text); }
