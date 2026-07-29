@@ -186,7 +186,7 @@ func (c *Client) DoJSON(
 		}
 	}
 
-	if businessCode != 0 && businessCode != 200 {
+	if businessCode != 0 && (businessCode < 200 || businessCode >= 300) {
 		return &APIError{
 			Path:       path,
 			StatusCode: resp.StatusCode,

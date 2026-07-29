@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import IconCheck from "~icons/lucide/check";
+import IconCircleCheck from "~icons/lucide/circle-check";
 import IconInfo from "~icons/lucide/info";
 
 withDefaults(defineProps<{
@@ -11,7 +11,7 @@ withDefaults(defineProps<{
 
 <template>
   <span class="notification-status-icon" :data-type="type" aria-hidden="true">
-    <IconCheck v-if="type === 'success'" />
+    <IconCircleCheck v-if="type === 'success'" class="success-check" />
     <span v-else-if="type === 'error'" class="error-exclamation">!</span>
     <IconInfo v-else />
   </span>
@@ -30,6 +30,7 @@ withDefaults(defineProps<{
 }
 
 .notification-status-icon :deep(svg) { width: 15px; height: 15px; stroke-width: 2.5; }
+.notification-status-icon .success-check { width: 17px; height: 17px; stroke-width: 2.75; }
 .notification-status-icon[data-type="error"] { background: #d9363e; }
 .error-exclamation { color: #fff; font: 900 17px/1 Arial, sans-serif; transform: translateY(-.5px); }
 .notification-status-icon[data-type="info"] { background: var(--app-accent); }

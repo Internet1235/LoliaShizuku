@@ -254,6 +254,7 @@ const handleCreateTunnel = async () => {
     return;
   }
 
+  notificationStore.dismiss();
   creatingTunnel.value = true;
   try {
     await createTunnel({
