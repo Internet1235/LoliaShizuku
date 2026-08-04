@@ -14,7 +14,7 @@
     "@kousum/semi-ui-vue": "^2.78.4",
     "@tailwindcss/vite": "^4.1.18",
     "@unovis/vue": "^1.6.4",
-    "@vueuse/core": "^14.2.1",
+    "@vueuse/core": "^14.4.0",
     "echarts": "^6.0.0",
     "lucide-vue-next": "^1.0.0",
     "pinia": "^3.0.4",
