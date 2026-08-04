@@ -13,7 +13,7 @@
     "@kousum/semi-icons-vue": "^2.78.0",
     "@kousum/semi-ui-vue": "^2.78.4",
     "@tailwindcss/vite": "^4.1.18",
-    "@unovis/vue": "^1.6.4",
+    "@unovis/vue": "^1.6.7",
     "@vueuse/core": "^14.2.1",
     "echarts": "^6.0.0",
     "lucide-vue-next": "^1.0.0",
